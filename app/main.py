@@ -50,12 +50,12 @@ def get_messages():
 @app.get("/chat/")
 def chat(message: str = Query(...)):
     try:
-        # 1️⃣ Fetch company & sustainability info from Supabase
+        # Fetch company & sustainability info from Supabase
         company_details = supabase.table("company_details").select("*").execute().data or []
         company_locations = supabase.table("company_locations").select("*").execute().data or []
         services_products = supabase.table("services_products").select("*").execute().data or []
 
-        # 2️⃣ Few-shot prompt with company context
+        # Few-shot prompt with company context
         few_shot_prompt = f"""
 You are an AI assistant specializing in sustainability and company-related sustainability.
 Answer questions in detail if they relate to sustainability, environmental regulations, or the company's sustainability initiatives.
@@ -81,14 +81,14 @@ A: Carbon is a crucial element in sustainability discussions. It is important to
 User Question: {message}
 """
 
-        # 3️⃣ Generate response from Gemini AI
+        # Generate response from Gemini AI
         response = model.generate_content(
             contents=[few_shot_prompt]
         )
 
         answer = response.text.strip()
 
-        # 4️⃣ Log AI response to Supabase
+        # Log AI response to Supabase
         supabase.table("messages").insert({"username": "AI", "message": answer}).execute()
 
         return {"user_message": message, "ai_response": answer}
