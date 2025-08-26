@@ -1,0 +1,43 @@
+name: Build & Deploy to SAP AI Core
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repo
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    # Log in to DockerHub
+    - name: Log in to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    # Build Docker image
+    - name: Build Docker image
+      run: |
+        docker build -t sustainability-chatbo:latest .
+
+    # Push Docker image to DockerHub
+    - name: Push Docker image
+      run: |
+        docker tag sustainability-chatbo:latest ${{ secrets.DOCKER_USERNAME }}/sustainability-chatbo:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/sustainability-chatbo:latest
+
+    # SAP AI Core Deployment
+    - name: Deploy to SAP AI Core
+      run: |
+        echo "Deploying to SAP AI Core..."
+        # Replace these values with your SAP AI Core deployment details
+        export SAP_AI_CORE_DEPLOYMENT_NAME="sustainability-chatbo-deploy"
+        export SAP_AI_CORE_NAMESPACE="default"
+        # Apply deployment using kubectl (assuming SAP AI Core uses kubeconfig setup)
+        kubectl apply -f sap_ai_core_deployment.yaml

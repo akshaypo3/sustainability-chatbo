@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sustainability-chatbo-deploy
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sustainability-chatbo
+  template:
+    metadata:
+      labels:
+        app: sustainability-chatbo
+    spec:
+      containers:
+        - name: sustainability-chatbo
+          image: akshay1p1/sustainability-chatbo:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SUPABASE_URL
+              value: ${{ secrets.SUPABASE_URL }}
+            - name: SUPABASE_KEY
+              value: ${{ secrets.SUPABASE_KEY }}
+            - name: GEMINI_API_KEY
+              value: ${{ secrets.GEMINI_API_KEY }}
