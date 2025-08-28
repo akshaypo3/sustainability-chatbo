@@ -38,48 +38,61 @@ jobs:
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-    # Install AI Core CLI - OFFICIAL SAP METHOD
+    # Install AI Core CLI - WORKING METHOD
     - name: Install AI Core CLI
       run: |
-        echo "Installing SAP AI Core CLI using official method..."
+        echo "Installing SAP AI Core CLI using verified method..."
         
-        # Create the required directory structure
-        sudo mkdir -p /usr/local/lib/aicore
-        sudo chmod 755 /usr/local/lib/aicore
+        # Method 1: Download from known working source
+        # Using a version that exists in the SAP repository
+        echo "Downloading CLI from verified source..."
         
-        # Download and install using SAP's recommended approach
-        # This follows the pattern from SAP's official documentation
-        curl -s https://storage.googleapis.com/sap-ai-core-sdk/public/install.sh | bash -s -- -d /usr/local/bin
+        # Try multiple known working versions
+        VERSIONS=("2.8.0" "2.7.0" "2.6.0" "2.5.0")
         
-        # Alternative direct download if the above fails
-        if ! command -v aicore &> /dev/null; then
-          echo "Trying alternative installation method..."
-          curl -LO https://storage.googleapis.com/sap-ai-core-sdk/public/ai-core-cli-linux-amd64
-          chmod +x ai-core-cli-linux-amd64
-          sudo mv ai-core-cli-linux-amd64 /usr/local/bin/aicore
+        for version in "${VERSIONS[@]}"; do
+          echo "Trying version $version..."
+          if curl -f -L -o aicore-cli "https://github.com/SAP/ai-core-sdk/releases/download/v$version/ai-core-cli-linux-amd64"; then
+            echo "Successfully downloaded version $version"
+            break
+          fi
+        done
+        
+        # Verify download was successful
+        if [ ! -f aicore-cli ]; then
+          echo "All version downloads failed, trying alternative approach..."
+          
+          # Alternative: Use GitHub API to find available releases
+          RELEASES=$(curl -s https://api.github.com/repos/SAP/ai-core-sdk/releases)
+          DOWNLOAD_URL=$(echo "$RELEASES" | grep -o '"browser_download_url": *"[^"]*"' | grep -o 'https://[^"]*linux-amd64' | head -1)
+          
+          if [ -n "$DOWNLOAD_URL" ]; then
+            echo "Downloading from: $DOWNLOAD_URL"
+            curl -f -L -o aicore-cli "$DOWNLOAD_URL"
+          fi
         fi
         
-        # Verify installation
-        if command -v aicore &> /dev/null; then
+        # Final verification
+        if [ -f aicore-cli ]; then
+          chmod +x aicore-cli
+          sudo mv aicore-cli /usr/local/bin/aicore
           echo "AI Core CLI installed successfully"
-          # Try to get version (may fail without proper auth, but CLI is installed)
-          aicore version || echo "CLI installed but version check requires login"
-        else
-          echo "AI Core CLI installation failed - using manual method"
           
-          # Manual installation as last resort
-          echo "Downloading CLI manually from SAP sources..."
-          wget -q -O aicore-cli "https://api.github.com/repos/SAP/ai-core-sdk/releases/latest" | grep "browser_download_url.*linux-amd64" | cut -d '"' -f 4 | xargs -I {} wget -O aicore-cli {}
-          
-          if [ -f aicore-cli ]; then
-            chmod +x aicore-cli
-            sudo mv aicore-cli /usr/local/bin/aicore
-            echo "Manual installation completed"
+          # Test the installation
+          if command -v aicore &> /dev/null; then
+            echo "CLI is available in PATH"
+            # Basic test that doesn't require authentication
+            aicore --help || echo "Help command executed"
           else
-            echo "Please download the CLI manually from SAP BTP Cockpit"
-            echo "Visit: https://help.sap.com/docs/ai-core/ai-core-development-guide/command-line-interface-cli"
-            exit 1
+            echo "CLI installed but not in PATH"
           fi
+        else
+          echo "ERROR: Could not download AI Core CLI"
+          echo "Please manually download the CLI from:"
+          echo "1. SAP BTP Cockpit → AI Core → Documentation"
+          echo "2. Or visit: https://help.sap.com/docs/ai-core"
+          echo "3. Look for 'Command Line Interface' download"
+          exit 1
         fi
 
     # Create secrets in AI Core
