@@ -219,3 +219,4 @@ jobs:
         
         echo -e "\nDeployment process completed!"
         echo "Check your SAP AI Core cockpit for detailed status."
+        
