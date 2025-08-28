@@ -1,36 +1,31 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
 metadata:
-  name: sustainability-chatbo-deploy
+  name: sustainability-chatbo-template
   namespace: default
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: sustainability-chatbo
-  template:
-    metadata:
-      labels:
-        app: sustainability-chatbo
-    spec:
-      containers:
-        - name: sustainability-chatbo
-          image: akshay1p1/sustainability-chatbo:latest
-          ports:
-            - containerPort: 8000
-          env:
-            - name: SUPABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secret
-                  key: SUPABASE_URL
-            - name: SUPABASE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secret
-                  key: SUPABASE_KEY
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: gemini-secret
-                  key: GEMINI_API_KEY
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: akshay1p1/sustainability-chatbo:latest
+        command: [ "python" ]
+        args: [ "app.py" ]
+        ports:
+          - containerPort: 8000
+        env:
+          - name: SUPABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: supabase-secret
+                key: SUPABASE_URL
+          - name: SUPABASE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: supabase-secret
+                key: SUPABASE_KEY
+          - name: GEMINI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: gemini-secret
+                key: GEMINI_API_KEY

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout the repo
+    # Checkout repo
     - name: Checkout repo
       uses: actions/checkout@v3
 
@@ -26,7 +26,7 @@ jobs:
       run: |
         docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest .
 
-    # Push Docker image to DockerHub
+    # Push Docker image
     - name: Push Docker image
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
@@ -47,7 +47,7 @@ jobs:
         token=$(echo $response | jq -r .access_token)
         echo "TOKEN=$token" >> $GITHUB_ENV
 
-    # Configure kubeconfig for SAP AI Core
+    # Configure kubeconfig for AI Core
     - name: Configure kubeconfig
       run: |
         mkdir -p $HOME/.kube
@@ -56,7 +56,7 @@ jobs:
         kubectl config set-context ai-core-context --cluster=ai-core --user=ai-core-user
         kubectl config use-context ai-core-context
 
-    # Deploy to SAP AI Core
-    - name: Deploy to SAP AI Core
+    # Deploy WorkflowTemplate to SAP AI Core
+    - name: Deploy WorkflowTemplate
       run: |
         kubectl apply -f sap_ai_core_deployment.yaml
