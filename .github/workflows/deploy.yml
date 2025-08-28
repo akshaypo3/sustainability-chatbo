@@ -15,95 +15,69 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    # Debug: Check what's actually in the secrets (without revealing values)
-    - name: Debug Secrets
+    # Debug: Check secret values (without exposing full values)
+    - name: Debug Secret Values
       run: |
-        echo "=== DEBUGGING SECRETS ==="
-        
-        # List all secrets and check if they contain values
+        echo "=== Checking Secret Values ==="
         secrets=("AI_API_URL" "AUTH_URL" "CLIENT_ID" "CLIENT_SECRET" "DOCKERHUB_USERNAME" "DOCKERHUB_TOKEN" "SUPABASE_URL" "SUPABASE_KEY" "GEMINI_API_KEY")
         
-        echo "Checking if secrets are properly set..."
-        echo ""
-        
         for secret in "${secrets[@]}"; do
-          # Use env to check if secret exists without printing value
-          if env | grep -q "^${secret}="; then
-            secret_value=$(printenv "$secret")
-            # Show first few characters to verify format without exposing full values
-            preview="${secret_value:0:10}..."
-            length=${#secret_value}
-            
-            echo "✓ $secret: EXISTS (length: $length chars, starts with: '$preview')"
-            
-            # Check for common issues
-            if [ -z "$secret_value" ]; then
-              echo "   ❌ PROBLEM: Secret is empty!"
-            elif [ "$secret_value" = "your-$secret-value-here" ]; then
-              echo "   ❌ PROBLEM: You used the placeholder text!"
-            elif [[ "$secret_value" == *"example.com"* ]] || [[ "$secret_value" == *"placeholder"* ]]; then
-              echo "   ❌ PROBLEM: You used example/placeholder text!"
-            fi
-            
+          secret_value=$(printenv "$secret")
+          length=${#secret_value}
+          preview="${secret_value:0:15}..."
+          
+          if [ $length -eq 0 ]; then
+            echo "❌ $secret: EMPTY (0 characters)"
+          elif [ $length -lt 10 ]; then
+            echo "⚠️  $secret: TOO SHORT ($length characters): '$preview'"
           else
-            echo "✗ $secret: NOT FOUND in environment"
+            echo "✅ $secret: OK ($length characters, starts: '$preview')"
           fi
-          echo ""
         done
 
-        # Additional checks for common SAP issues
-        echo "=== SAP SPECIFIC CHECKS ==="
-        if [ -n "$AUTH_URL" ]; then
-          if [[ "$AUTH_URL" != *"/oauth/token" ]]; then
-            echo "⚠️  AUTH_URL might need '/oauth/token' suffix"
-            echo "   Current: $AUTH_URL"
-            echo "   Should be: ${AUTH_URL}/oauth/token"
-          fi
-          
-          if [[ "$AUTH_URL" != *"https://"* ]]; then
-            echo "❌ AUTH_URL must start with https://"
-          fi
-        fi
-        
-        if [ -n "$AI_API_URL" ]; then
-          if [[ "$AI_API_URL" != *"https://"* ]]; then
-            echo "❌ AI_API_URL must start with https://"
-          fi
-        fi
-        
+        # Additional validation for SAP secrets
         echo ""
-        echo "=== QUICK FIXES ==="
-        echo "If any secrets show problems:"
-        echo "1. Go to Repository Settings → Secrets → Actions"
-        echo "2. Delete the problematic secret"
-        echo "3. Re-add it with the correct value"
-        echo "4. Make sure you're copying from your actual service key, not examples"
+        echo "=== SAP Secrets Validation ==="
+        if [ -n "$AI_API_URL" ] && [[ "$AI_API_URL" != *"https://"* ]]; then
+          echo "❌ AI_API_URL must start with https://"
+        fi
+        
+        if [ -n "$AUTH_URL" ] && [[ "$AUTH_URL" != *"/oauth/token" ]]; then
+          echo "⚠️  AUTH_URL might need '/oauth/token' suffix"
+        fi
+        
+        if [ -n "$CLIENT_ID" ] && [[ "$CLIENT_ID" != "sb-"* ]]; then
+          echo "⚠️  CLIENT_ID should start with 'sb-'"
+        fi
 
-    # Only continue if secrets are valid
+    # Validate secrets are not empty
     - name: Validate Secrets
       run: |
-        # Check if any critical secrets are missing or empty
         critical_secrets=("AI_API_URL" "AUTH_URL" "CLIENT_ID" "CLIENT_SECRET")
         has_error=false
         
         for secret in "${critical_secrets[@]}"; do
-          secret_value=$(printenv "$secret" || true)
+          secret_value=$(printenv "$secret")
           if [ -z "$secret_value" ]; then
-            echo "❌ CRITICAL ERROR: $secret is empty or not set!"
+            echo "❌ ERROR: $secret is EMPTY!"
             has_error=true
-          elif [[ "$secret_value" == *"example"* ]] || [[ "$secret_value" == *"placeholder"* ]]; then
-            echo "❌ CRITICAL ERROR: $secret contains example text!"
+          elif [ ${#secret_value} -lt 10 ]; then
+            echo "❌ ERROR: $secret is TOO SHORT (${#secret_value} chars) - likely placeholder text"
             has_error=true
           fi
         done
         
         if [ "$has_error" = true ]; then
           echo ""
-          echo "Please fix the secrets above and try again."
+          echo "Please fix the secrets in GitHub:"
+          echo "1. Go to Repository Settings → Secrets → Actions"
+          echo "2. Delete the problematic secrets"
+          echo "3. Re-add them with ACTUAL values from your SAP service key"
+          echo "4. Make sure you're not using example/placeholder text"
           exit 1
         fi
         
-        echo "✓ All critical secrets appear to be valid"
+        echo "✅ All secrets validation passed"
 
     # Set up Python
     - name: Set up Python
@@ -167,16 +141,113 @@ jobs:
           echo "Response: $RESPONSE_BODY"
           echo ""
           echo "COMMON SOLUTIONS:"
-          echo "1. Check if AUTH_URL is correct (from SAP service key uaa.url + /oauth/token)"
+          echo "1. Check AUTH_URL format: https://your-domain.authentication.region.hana.ondemand.com/oauth/token"
           echo "2. Verify CLIENT_ID and CLIENT_SECRET are exact copies from service key"
-          echo "3. Ensure your SAP service key has not expired"
-          echo "4. Check if your SAP account has proper permissions"
+          echo "3. Ensure your SAP account has proper permissions"
           exit 1
         fi
         
         ACCESS_TOKEN=$(echo "$RESPONSE_BODY" | jq -r '.access_token')
-        echo "✅ Authentication successful!"
         
-        # Continue with deployment...
-        echo "Creating secrets and deploying..."
-        # ... [rest of your deployment code]
+        if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+          echo "ERROR: Failed to extract access token from response"
+          exit 1
+        fi
+        
+        echo "✅ Authentication successful! Access token obtained"
+
+        # Create secrets using API
+        echo "Creating Supabase secret..."
+        SUPABASE_SECRET_PAYLOAD=$(jq -n \
+          --arg url "${{ secrets.SUPABASE_URL }}" \
+          --arg key "${{ secrets.SUPABASE_KEY }}" \
+          '{
+            "name": "supabase-secret",
+            "data": {"SUPABASE_URL": $url, "SUPABASE_KEY": $key},
+            "labels": {"ai.sap.com/resourcePlan": "free"}
+          }')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "$SUPABASE_SECRET_PAYLOAD"
+        
+        echo "Creating Gemini secret..."
+        GEMINI_SECRET_PAYLOAD=$(jq -n \
+          --arg key "${{ secrets.GEMINI_API_KEY }}" \
+          '{
+            "name": "gemini-secret",
+            "data": {"GEMINI_API_KEY": $key},
+            "labels": {"ai.sap.com/resourcePlan": "free"}
+          }')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "$GEMINI_SECRET_PAYLOAD"
+        
+        echo "Creating Docker registry secret..."
+        DOCKER_AUTH=$(echo -n "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" | base64 | tr -d '\n')
+        DOCKER_CONFIG=$(jq -n \
+          --arg server "https://index.docker.io/v1/" \
+          --arg username "${{ secrets.DOCKERHUB_USERNAME }}" \
+          --arg password "${{ secrets.DOCKERHUB_TOKEN }}" \
+          --arg auth "$DOCKER_AUTH" \
+          '{
+            "auths": {
+              ($server): {
+                "username": $username,
+                "password": $password,
+                "auth": $auth
+              }
+            }
+          }')
+        
+        DOCKER_SECRET_PAYLOAD=$(jq -n \
+          --argjson data "$DOCKER_CONFIG" \
+          '{
+            "name": "docker-registry-secret",
+            "type": "kubernetes.io/dockerconfigjson",
+            "data": $data,
+            "labels": {"ai.sap.com/resourcePlan": "free"}
+          }')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "$DOCKER_SECRET_PAYLOAD"
+        
+        # Create workflow template
+        echo "Creating workflow template..."
+        
+        # Read and modify the workflow template
+        WORKFLOW_TEMPLATE=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: argoproj.io\/v1alpha1/,/^---$/p' | head -n -1 | sed "s/\${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_USERNAME }}/g")
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/workflowtemplates" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/yaml" \
+          --data-binary "$WORKFLOW_TEMPLATE"
+        
+        # Create deployment
+        echo "Creating deployment..."
+        
+        # Read the deployment manifest
+        DEPLOYMENT_MANIFEST=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: ai.sap.com\/v1alpha1/,/$/p')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/lm/deployments" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/yaml" \
+          --data-binary "$DEPLOYMENT_MANIFEST"
+        
+        echo "✅ Deployment completed successfully!"
+
+    # Verify deployment
+    - name: Verify Deployment
+      run: |
+        echo "✅ Deployment process completed!"
+        echo "Check your SAP AI Core cockpit for detailed status."
+        echo ""
+        echo "Next steps:"
+        echo "1. Go to SAP AI Core cockpit"
+        echo "2. Check your deployment status"
+        echo "3. Get the service URL once it's running"
