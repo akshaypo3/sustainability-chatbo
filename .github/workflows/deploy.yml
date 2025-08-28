@@ -24,16 +24,26 @@ jobs:
     # Build Docker image
     - name: Build Docker image
       run: |
-        docker build -t sustainability-chatbo:latest .
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest .
 
     # Push Docker image to DockerHub
     - name: Push Docker image
       run: |
-        docker tag sustainability-chatbo:latest ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest
 
-    # Deploy to SAP AI Core (via kubectl)
+    # Set up kubectl
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.26.0'
+
+    # Configure kubeconfig for SAP AI Core
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBECONFIG_FILE }}" > $HOME/.kube/config
+
+    # Deploy to SAP AI Core
     - name: Deploy to SAP AI Core
       run: |
-        echo "Deploying to SAP AI Core..."
         kubectl apply -f sap_ai_core_deployment.yaml
