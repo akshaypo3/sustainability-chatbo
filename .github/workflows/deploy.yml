@@ -31,32 +31,31 @@ jobs:
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-    # Install kubectl
-    - name: Install kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'v1.26.0'
-
-    # Get SAP AI Core Access Token
-    - name: Get AI Core Token
-      id: get_token
+    # Install AI Core CLI
+    - name: Install AI Core CLI
       run: |
-        response=$(curl -s -X POST "${{ secrets.AUTH_URL }}" \
-          -H "Content-Type: application/x-www-form-urlencoded" \
-          -d "grant_type=client_credentials&client_id=${{ secrets.CLIENT_ID }}&client_secret=${{ secrets.CLIENT_SECRET }}")
-        token=$(echo $response | jq -r .access_token)
-        echo "TOKEN=$token" >> $GITHUB_ENV
+        pip install sap-ai-core-cli
 
-    # Configure kubeconfig for AI Core
-    - name: Configure kubeconfig
+    # Login to AI Core
+    - name: Login to AI Core
       run: |
-        mkdir -p $HOME/.kube
-        kubectl config set-cluster ai-core --server=${{ secrets.AI_API_URL }} --insecure-skip-tls-verify=true
-        kubectl config set-credentials ai-core-user --token=$TOKEN
-        kubectl config set-context ai-core-context --cluster=ai-core --user=ai-core-user
-        kubectl config use-context ai-core-context
+        aicore login \
+          --url "${{ secrets.AI_API_URL }}" \
+          --clientid "${{ secrets.CLIENT_ID }}" \
+          --clientsecret "${{ secrets.CLIENT_SECRET }}" \
+          --tokenurl "${{ secrets.AUTH_URL }}"
 
-    # Deploy WorkflowTemplate to SAP AI Core
-    - name: Deploy WorkflowTemplate
+    # Push Workflow Template
+    - name: Push Workflow Template
       run: |
-        kubectl apply -f sap_ai_core_deployment.yaml
+        aicore workflow push -f sap_ai_core_deployment.yaml
+
+    # Create Deployment
+    - name: Create Deployment
+      run: |
+        aicore deployment create -f sap_ai_core_deployment.yaml
+
+    # Get Deployment URL
+    - name: Get Deployment URL
+      run: |
+        aicore deployment list

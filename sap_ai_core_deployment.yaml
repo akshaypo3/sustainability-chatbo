@@ -2,17 +2,14 @@ apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: sustainability-chatbo-template
-  namespace: default
 spec:
   entrypoint: main
   templates:
     - name: main
       container:
         image: akshay1p1/sustainability-chatbo:latest
-        command: [ "python" ]
-        args: [ "app.py" ]
-        ports:
-          - containerPort: 8000
+        command: ["python"]
+        args: ["app.py"]
         env:
           - name: SUPABASE_URL
             valueFrom:
@@ -29,3 +26,13 @@ spec:
               secretKeyRef:
                 name: gemini-secret
                 key: GEMINI_API_KEY
+---
+apiVersion: ai.sap.com/v1alpha1
+kind: Deployment
+metadata:
+  name: sustainability-chatbo-deployment
+spec:
+  template:
+    name: sustainability-chatbo-template
+  runtime:
+    replicas: 1
