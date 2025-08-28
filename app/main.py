@@ -3,6 +3,10 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+import logging
+from fastapi.responses import JSONResponse
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +30,16 @@ app = FastAPI()
 @app.get("/")
 def root():
     return {"message": "FastAPI + Supabase + Gemini ready!"}
+# Health check endpoint for SAP AI Core
+@app.get("/health")
+def health_check():
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "service": "sustainability-chatbot",
+            "version": "1.0.0"
+        }
+    )
 
 # Add message to Supabase
 @app.post("/add_message/")

@@ -2,14 +2,20 @@ apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: sustainability-chatbo-template
+  annotations:
+    scenarios.ai.sap.com/name: "Sustainability-Chatbot"
+    executables.ai.sap.com/description: "Chatbot for sustainability queries"
+    artifacts.ai.sap.com/chatbot.kind: "model"
 spec:
   entrypoint: main
+  imagePullSecrets:
+    - name: docker-registry-secret
   templates:
     - name: main
       container:
-        image: akshay1p1/sustainability-chatbo:latest
-        command: ["python"]
-        args: ["app.py"]
+        image: ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
+        command: ["uvicorn"]
+        args: ["app.main:app", "--host", "0.0.0.0", "--port", "8000"]
         env:
           - name: SUPABASE_URL
             valueFrom:
@@ -26,6 +32,15 @@ spec:
               secretKeyRef:
                 name: gemini-secret
                 key: GEMINI_API_KEY
+        ports:
+          - containerPort: 8000
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
 ---
 apiVersion: ai.sap.com/v1alpha1
 kind: Deployment

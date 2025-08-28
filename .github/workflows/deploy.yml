@@ -8,11 +8,18 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
     # Checkout repo
     - name: Checkout repo
       uses: actions/checkout@v3
+
+    # Set up Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
     # Log in to DockerHub
     - name: Log in to DockerHub
@@ -34,7 +41,38 @@ jobs:
     # Install AI Core CLI
     - name: Install AI Core CLI
       run: |
-        pip install sap-ai-core-cli
+        # Download the AI Core CLI from SAP's repository
+        curl -LO https://github.com/SAP/ai-core-sdk/releases/latest/download/ai-core-cli-linux-amd64
+        chmod +x ai-core-cli-linux-amd64
+        sudo mv ai-core-cli-linux-amd64 /usr/local/bin/aicore
+        aicore version
+
+    # Create secrets in AI Core
+    - name: Create Supabase Secret in AI Core
+      run: |
+        aicore secret create \
+          --name supabase-secret \
+          --data SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+          --data SUPABASE_KEY=${{ secrets.SUPABASE_KEY }} \
+          --label "ai.sap.com/resourcePlan=free"
+
+    - name: Create Gemini Secret in AI Core
+      run: |
+        aicore secret create \
+          --name gemini-secret \
+          --data GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+          --label "ai.sap.com/resourcePlan=free"
+
+    # Create Docker registry secret
+    - name: Create Docker Registry Secret
+      run: |
+        aicore secret create \
+          --name docker-registry-secret \
+          --type kubernetes.io/dockerconfigjson \
+          --docker-server https://index.docker.io/v1/ \
+          --docker-username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --docker-password ${{ secrets.DOCKERHUB_TOKEN }} \
+          --label "ai.sap.com/resourcePlan=free"
 
     # Login to AI Core
     - name: Login to AI Core
@@ -58,4 +96,6 @@ jobs:
     # Get Deployment URL
     - name: Get Deployment URL
       run: |
+        echo "Deployment status:"
         aicore deployment list
+        echo -e "\nTo get the service URL, run: aicore service list"
