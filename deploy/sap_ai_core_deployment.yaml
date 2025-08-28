@@ -1,43 +1,41 @@
 apiVersion: ai.sap.com/v1alpha1
 kind: ServingTemplate
 metadata:
-  name: sustainability-chatbot-serving   
+  name: sustainability-chatbot-serving
   annotations:
     scenarios.ai.sap.com/name: chatbot-scenario
     executables.ai.sap.com/name: chatbot-executable
 spec:
   inputs:
-    - name: prompt
+    prompt: 
       type: string
       description: "User input to chatbot"
-  template:
-    spec:
-      containers:
-        - name: chatbot
-          image: docker.io/akshay1p1/sustainability-chatbo:latest
-          command: ["python", "app/main.py"]
-          ports:
-            - containerPort: 5000
-          resources:
-            limits:
-              cpu: "1"
-              memory: "2Gi"
-          env:
-            - name: SUPABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secret
-                  key: SUPABASE_URL
-            - name: SUPABASE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secret
-                  key: SUPABASE_KEY
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: gemini-secret
-                  key: GEMINI_API_KEY
-      
-      imagePullSecrets:
-        - name: dockerhub-secret
+  template: |
+    containers:
+      - name: chatbot
+        image: docker.io/akshay1p1/sustainability-chatbo:latest
+        command: ["python", "app/main.py"]
+        ports:
+          - containerPort: 5000
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        env:
+          - name: SUPABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: supabase-secret
+                key: SUPABASE_URL
+          - name: SUPABASE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: supabase-secret
+                key: SUPABASE_KEY
+          - name: GEMINI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: gemini-secret
+                key: GEMINI_API_KEY
+    imagePullSecrets:
+      - name: dockerhub-secret
