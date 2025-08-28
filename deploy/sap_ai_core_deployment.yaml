@@ -4,8 +4,8 @@ metadata:
   name: sustainability-chatbot-serving
   annotations:
     scenarios.ai.sap.com/name: chatbot-scenario
-    executables.ai.sap.com/name: chatbot-executable
-    scenarios.ai.sap.com/description: "Sustainability Chatbot serving template"
+    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
+    executables.ai.sap.com/name: sustainability-chatbot-exec
     executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
   labels:
     ai.sap.com/version: "0.1.0"
@@ -21,12 +21,12 @@ spec:
   template:
     apiVersion: "serving.kserve.io/v1beta1"
     metadata:
-      labels: |
-        ai.sap.com/resourcePlan: starter
       annotations: |
         autoscaling.knative.dev/metric: rps
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
+      labels: |
+        ai.sap.com/resourcePlan: starter
     spec: |
       predictor:
         minReplicas: 1
@@ -34,10 +34,11 @@ spec:
         imagePullSecrets:
           - name: dockerhub-secret
         containers:
-          - name: chatbot
+          - name: kserve-container
             image: "{{inputs.parameters.image}}"
             ports:
               - containerPort: 5000
+                protocol: TCP
             env:
               - name: SUPABASE_URL
                 valueFrom:
