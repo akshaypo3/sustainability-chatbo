@@ -27,7 +27,7 @@ spec:
         autoscaling.knative.dev/metric: rps
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
-    spec:
+    spec: |
       predictor:
         minReplicas: 1
         maxReplicas: 2
