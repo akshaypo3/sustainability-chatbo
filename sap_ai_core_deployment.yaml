@@ -1,52 +1,23 @@
-apiVersion: argoproj.io/v1alpha1
-kind: WorkflowTemplate
-metadata:
-  name: sustainability-chatbo-template
-  annotations:
-    scenarios.ai.sap.com/name: "Sustainability-Chatbot"
-    executables.ai.sap.com/description: "Chatbot for sustainability queries"
-spec:
-  entrypoint: main
-  imagePullSecrets:
-    - name: docker-registry-secret
-  templates:
-    - name: main
-      container:
-        image: ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest  # This will be replaced
-        command: ["uvicorn"]
-        args: ["app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-        env:
-          - name: SUPABASE_URL
-            valueFrom:
-              secretKeyRef:
-                name: supabase-secret
-                key: SUPABASE_URL
-          - name: SUPABASE_KEY
-            valueFrom:
-              secretKeyRef:
-                name: supabase-secret
-                key: SUPABASE_KEY
-          - name: GEMINI_API_KEY
-            valueFrom:
-              secretKeyRef:
-                name: gemini-secret
-                key: GEMINI_API_KEY
-        ports:
-          - containerPort: 8000
-        resources:
-          requests:
-            memory: "2Gi"
-            cpu: "1"
-          limits:
-            memory: "4Gi"
-            cpu: "2"
----
 apiVersion: ai.sap.com/v1alpha1
 kind: Deployment
 metadata:
-  name: sustainability-chatbo-deployment
+  name: chatbot-deployment   # unique deployment name
+  annotations:
+    scenarios.ai.sap.com/name: chatbot-scenario   # scenario ID
+    executables.ai.sap.com/name: chatbot-executable # executable ID
 spec:
   template:
-    name: sustainability-chatbo-template
-  runtime:
-    replicas: 1
+    spec:
+      containers:
+        - name: chatbot-container
+          image: docker.io/your-dockerhub-username/sustainability-chatbot:latest
+          command: ["python", "app.py"]   # entrypoint command
+          ports:
+            - containerPort: 5000
+          resources:
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          env:
+            - name: MODEL_NAME
+              value: "google/flan-t5-small"   # example custom model

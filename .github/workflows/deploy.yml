@@ -1,4 +1,4 @@
-name: Build & Deploy to SAP AI Core
+name: Build & Validate SAP AI Core
 
 on:
   push:
@@ -6,248 +6,69 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
-    # Checkout repo
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      # 1) Checkout
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    # Debug: Check secret values (without exposing full values)
-    - name: Debug Secret Values
-      run: |
-        echo "=== Checking Secret Values ==="
-        secrets=("AI_API_URL" "AUTH_URL" "CLIENT_ID" "CLIENT_SECRET" "DOCKERHUB_USERNAME" "DOCKERHUB_TOKEN" "SUPABASE_URL" "SUPABASE_KEY" "GEMINI_API_KEY")
-        
-        for secret in "${secrets[@]}"; do
-          secret_value=$(printenv "$secret")
-          length=${#secret_value}
-          preview="${secret_value:0:15}..."
-          
-          if [ $length -eq 0 ]; then
-            echo "❌ $secret: EMPTY (0 characters)"
-          elif [ $length -lt 10 ]; then
-            echo "⚠️  $secret: TOO SHORT ($length characters): '$preview'"
-          else
-            echo "✅ $secret: OK ($length characters, starts: '$preview')"
+      # 2) Log in to DockerHub
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3) Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest .
+
+      # 4) Push Docker image
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
+
+      # 5) Install jq (for parsing JSON) and SAP AI Core SDK (correct package)
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install --user ai-core-sdk
+
+      # 6) Get OAuth token from SAP BTP (XSUAA)
+      - name: Get AI Core OAuth Token
+        id: get_token
+        env:
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          response=$(curl -s -X POST "$AUTH_URL" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
+          echo "$response" | jq .
+          token=$(echo "$response" | jq -r '.access_token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "Failed to get access_token from AUTH_URL"; exit 1;
           fi
-        done
+          echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
 
-        # Additional validation for SAP secrets
-        echo ""
-        echo "=== SAP Secrets Validation ==="
-        if [ -n "$AI_API_URL" ] && [[ "$AI_API_URL" != *"https://"* ]]; then
-          echo "❌ AI_API_URL must start with https://"
-        fi
-        
-        if [ -n "$AUTH_URL" ] && [[ "$AUTH_URL" != *"/oauth/token" ]]; then
-          echo "⚠️  AUTH_URL might need '/oauth/token' suffix"
-        fi
-        
-        if [ -n "$CLIENT_ID" ] && [[ "$CLIENT_ID" != "sb-"* ]]; then
-          echo "⚠️  CLIENT_ID should start with 'sb-'"
-        fi
+      # 7) Sanity check: call AI Core API
+      - name: Validate AI Core API connectivity
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+        run: |
+          echo "Listing resource groups to validate connectivity..."
+          curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
+               "$AI_API_URL/v2/resourceGroups" | jq .
+          echo "Success. Your creds and API URL are valid."
 
-    # Validate secrets are not empty
-    - name: Validate Secrets
-      run: |
-        critical_secrets=("AI_API_URL" "AUTH_URL" "CLIENT_ID" "CLIENT_SECRET")
-        has_error=false
-        
-        for secret in "${critical_secrets[@]}"; do
-          secret_value=$(printenv "$secret")
-          if [ -z "$secret_value" ]; then
-            echo "❌ ERROR: $secret is EMPTY!"
-            has_error=true
-          elif [ ${#secret_value} -lt 10 ]; then
-            echo "❌ ERROR: $secret is TOO SHORT (${#secret_value} chars) - likely placeholder text"
-            has_error=true
-          fi
-        done
-        
-        if [ "$has_error" = true ]; then
-          echo ""
-          echo "Please fix the secrets in GitHub:"
-          echo "1. Go to Repository Settings → Secrets → Actions"
-          echo "2. Delete the problematic secrets"
-          echo "3. Re-add them with ACTUAL values from your SAP service key"
-          echo "4. Make sure you're not using example/placeholder text"
-          exit 1
-        fi
-        
-        echo "✅ All secrets validation passed"
-
-    # Set up Python
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    # Install jq for JSON parsing
-    - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y jq curl
-
-    # Log in to DockerHub
-    - name: Log in to DockerHub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    # Build Docker image
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest .
-
-    # Push Docker image
-    - name: Push Docker image
-      run: |
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
-
-    # Prepare authentication URL
-    - name: Prepare authentication URL
-      run: |
-        echo "Original AUTH_URL: ${{ secrets.AUTH_URL }}"
-        # Ensure the URL has /oauth/token suffix
-        if [[ "${{ secrets.AUTH_URL }}" == *"/oauth/token" ]]; then
-          echo "AUTH_URL_WITH_SUFFIX=${{ secrets.AUTH_URL }}" >> $GITHUB_ENV
-        else
-          echo "AUTH_URL_WITH_SUFFIX=${{ secrets.AUTH_URL }}/oauth/token" >> $GITHUB_ENV
-        fi
-        echo "Using AUTH_URL: $AUTH_URL_WITH_SUFFIX"
-
-    # Deploy to SAP AI Core using Direct API
-    - name: Deploy to SAP AI Core via API
-      run: |
-        echo "Testing authentication with provided credentials..."
-        echo "Auth URL: $AUTH_URL_WITH_SUFFIX"
-        echo "Client ID: ${{ secrets.CLIENT_ID }}"
-        
-        # Get access token
-        TOKEN_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$AUTH_URL_WITH_SUFFIX" \
-          -H "Content-Type: application/x-www-form-urlencoded" \
-          -d "grant_type=client_credentials&client_id=${{ secrets.CLIENT_ID }}&client_secret=${{ secrets.CLIENT_SECRET }}")
-        
-        # Extract HTTP status and response body
-        HTTP_STATUS=$(echo "$TOKEN_RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
-        RESPONSE_BODY=$(echo "$TOKEN_RESPONSE" | sed '/HTTP_STATUS:/d')
-        
-        echo "HTTP Status: $HTTP_STATUS"
-        
-        if [ "$HTTP_STATUS" != "200" ]; then
-          echo "❌ AUTHENTICATION FAILED"
-          echo "Response: $RESPONSE_BODY"
-          echo ""
-          echo "COMMON SOLUTIONS:"
-          echo "1. Check AUTH_URL format: https://your-domain.authentication.region.hana.ondemand.com/oauth/token"
-          echo "2. Verify CLIENT_ID and CLIENT_SECRET are exact copies from service key"
-          echo "3. Ensure your SAP account has proper permissions"
-          exit 1
-        fi
-        
-        ACCESS_TOKEN=$(echo "$RESPONSE_BODY" | jq -r '.access_token')
-        
-        if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
-          echo "ERROR: Failed to extract access token from response"
-          exit 1
-        fi
-        
-        echo "✅ Authentication successful! Access token obtained"
-
-        # Create secrets using API
-        echo "Creating Supabase secret..."
-        SUPABASE_SECRET_PAYLOAD=$(jq -n \
-          --arg url "${{ secrets.SUPABASE_URL }}" \
-          --arg key "${{ secrets.SUPABASE_KEY }}" \
-          '{
-            "name": "supabase-secret",
-            "data": {"SUPABASE_URL": $url, "SUPABASE_KEY": $key},
-            "labels": {"ai.sap.com/resourcePlan": "free"}
-          }')
-        
-        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
-          -H "Authorization: Bearer $ACCESS_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "$SUPABASE_SECRET_PAYLOAD"
-        
-        echo "Creating Gemini secret..."
-        GEMINI_SECRET_PAYLOAD=$(jq -n \
-          --arg key "${{ secrets.GEMINI_API_KEY }}" \
-          '{
-            "name": "gemini-secret",
-            "data": {"GEMINI_API_KEY": $key},
-            "labels": {"ai.sap.com/resourcePlan": "free"}
-          }')
-        
-        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
-          -H "Authorization: Bearer $ACCESS_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "$GEMINI_SECRET_PAYLOAD"
-        
-        echo "Creating Docker registry secret..."
-        DOCKER_AUTH=$(echo -n "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" | base64 | tr -d '\n')
-        DOCKER_CONFIG=$(jq -n \
-          --arg server "https://index.docker.io/v1/" \
-          --arg username "${{ secrets.DOCKERHUB_USERNAME }}" \
-          --arg password "${{ secrets.DOCKERHUB_TOKEN }}" \
-          --arg auth "$DOCKER_AUTH" \
-          '{
-            "auths": {
-              ($server): {
-                "username": $username,
-                "password": $password,
-                "auth": $auth
-              }
-            }
-          }')
-        
-        DOCKER_SECRET_PAYLOAD=$(jq -n \
-          --argjson data "$DOCKER_CONFIG" \
-          '{
-            "name": "docker-registry-secret",
-            "type": "kubernetes.io/dockerconfigjson",
-            "data": $data,
-            "labels": {"ai.sap.com/resourcePlan": "free"}
-          }')
-        
-        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
-          -H "Authorization: Bearer $ACCESS_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "$DOCKER_SECRET_PAYLOAD"
-        
-        # Create workflow template
-        echo "Creating workflow template..."
-        
-        # Read and modify the workflow template
-        WORKFLOW_TEMPLATE=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: argoproj.io\/v1alpha1/,/^---$/p' | head -n -1 | sed "s/\${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_USERNAME }}/g")
-        
-        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/workflowtemplates" \
-          -H "Authorization: Bearer $ACCESS_TOKEN" \
-          -H "Content-Type: application/yaml" \
-          --data-binary "$WORKFLOW_TEMPLATE"
-        
-        # Create deployment
-        echo "Creating deployment..."
-        
-        # Read the deployment manifest
-        DEPLOYMENT_MANIFEST=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: ai.sap.com\/v1alpha1/,/$/p')
-        
-        curl -X POST "${{ secrets.AI_API_URL }}/v2/lm/deployments" \
-          -H "Authorization: Bearer $ACCESS_TOKEN" \
-          -H "Content-Type: application/yaml" \
-          --data-binary "$DEPLOYMENT_MANIFEST"
-        
-        echo "✅ Deployment completed successfully!"
-
-    # Verify deployment
-    - name: Verify Deployment
-      run: |
-        echo "✅ Deployment process completed!"
-        echo "Check your SAP AI Core cockpit for detailed status."
-        echo ""
-        echo "Next steps:"
-        echo "1. Go to SAP AI Core cockpit"
-        echo "2. Check your deployment status"
-        echo "3. Get the service URL once it's running"
+      # 8) Output the image URL for reference (you'll need this in Launchpad)
+      - name: Print image URL for Launchpad
+        run: |
+          echo "Container image to use in Serving Template:"
+          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
