@@ -5,37 +5,52 @@ metadata:
   annotations:
     scenarios.ai.sap.com/name: chatbot-scenario
     executables.ai.sap.com/name: chatbot-executable
+    scenarios.ai.sap.com/description: "Sustainability Chatbot serving template"
+    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
+  labels:
+    ai.sap.com/version: "0.1.0"
+    scenarios.ai.sap.com/id: "chatbot-scenario"
 spec:
   inputs:
-    prompt: 
-      type: string
-      description: "User input to chatbot"
-  template: |
-    containers:
-      - name: chatbot
-        image: docker.io/akshay1p1/sustainability-chatbo:latest
-        command: ["python", "app/main.py"]
-        ports:
-          - containerPort: 5000
-        resources:
-          limits:
-            cpu: "1"
-            memory: "2Gi"
-        env:
-          - name: SUPABASE_URL
-            valueFrom:
-              secretKeyRef:
-                name: supabase-secret
-                key: SUPABASE_URL
-          - name: SUPABASE_KEY
-            valueFrom:
-              secretKeyRef:
-                name: supabase-secret
-                key: SUPABASE_KEY
-          - name: GEMINI_API_KEY
-            valueFrom:
-              secretKeyRef:
-                name: gemini-secret
-                key: GEMINI_API_KEY
-    imagePullSecrets:
-      - name: dockerhub-secret
+    parameters:
+      - name: image
+        type: string
+        default: "docker.io/akshay1p1/sustainability-chatbo:latest"
+        description: "Docker image for chatbot"
+    artifacts: []
+  template:
+    apiVersion: "serving.kserve.io/v1beta1"
+    metadata:
+      labels: |
+        ai.sap.com/resourcePlan: starter
+      annotations: |
+        autoscaling.knative.dev/metric: rps
+        autoscaling.knative.dev/target: 100
+        autoscaling.knative.dev/targetBurstCapacity: 70
+    spec:
+      predictor:
+        minReplicas: 1
+        maxReplicas: 2
+        imagePullSecrets:
+          - name: dockerhub-secret
+        containers:
+          - name: chatbot
+            image: "{{inputs.parameters.image}}"
+            ports:
+              - containerPort: 5000
+            env:
+              - name: SUPABASE_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: supabase-secret
+                    key: SUPABASE_URL
+              - name: SUPABASE_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: supabase-secret
+                    key: SUPABASE_KEY
+              - name: GEMINI_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: gemini-secret
+                    key: GEMINI_API_KEY
