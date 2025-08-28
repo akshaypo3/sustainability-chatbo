@@ -5,7 +5,6 @@ metadata:
   annotations:
     scenarios.ai.sap.com/name: "Sustainability-Chatbot"
     executables.ai.sap.com/description: "Chatbot for sustainability queries"
-    artifacts.ai.sap.com/chatbot.kind: "model"
 spec:
   entrypoint: main
   imagePullSecrets:
@@ -13,7 +12,7 @@ spec:
   templates:
     - name: main
       container:
-        image: ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
+        image: ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest  # This will be replaced
         command: ["uvicorn"]
         args: ["app.main:app", "--host", "0.0.0.0", "--port", "8000"]
         env:

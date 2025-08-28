@@ -21,6 +21,10 @@ jobs:
       with:
         python-version: '3.11'
 
+    # Install jq for JSON parsing
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y jq curl
+
     # Log in to DockerHub
     - name: Log in to DockerHub
       uses: docker/login-action@v2
@@ -38,112 +42,119 @@ jobs:
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-    # Install AI Core CLI - WORKING METHOD
-    - name: Install AI Core CLI
+    # Deploy to SAP AI Core using Direct API
+    - name: Deploy to SAP AI Core via API
       run: |
-        echo "Installing SAP AI Core CLI using verified method..."
+        # Get access token
+        echo "Getting access token from SAP..."
+        TOKEN_RESPONSE=$(curl -s -X POST "${{ secrets.AUTH_URL }}" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "grant_type=client_credentials&client_id=${{ secrets.CLIENT_ID }}&client_secret=${{ secrets.CLIENT_SECRET }}")
         
-        # Method 1: Download from known working source
-        # Using a version that exists in the SAP repository
-        echo "Downloading CLI from verified source..."
+        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
         
-        # Try multiple known working versions
-        VERSIONS=("2.8.0" "2.7.0" "2.6.0" "2.5.0")
-        
-        for version in "${VERSIONS[@]}"; do
-          echo "Trying version $version..."
-          if curl -f -L -o aicore-cli "https://github.com/SAP/ai-core-sdk/releases/download/v$version/ai-core-cli-linux-amd64"; then
-            echo "Successfully downloaded version $version"
-            break
-          fi
-        done
-        
-        # Verify download was successful
-        if [ ! -f aicore-cli ]; then
-          echo "All version downloads failed, trying alternative approach..."
-          
-          # Alternative: Use GitHub API to find available releases
-          RELEASES=$(curl -s https://api.github.com/repos/SAP/ai-core-sdk/releases)
-          DOWNLOAD_URL=$(echo "$RELEASES" | grep -o '"browser_download_url": *"[^"]*"' | grep -o 'https://[^"]*linux-amd64' | head -1)
-          
-          if [ -n "$DOWNLOAD_URL" ]; then
-            echo "Downloading from: $DOWNLOAD_URL"
-            curl -f -L -o aicore-cli "$DOWNLOAD_URL"
-          fi
-        fi
-        
-        # Final verification
-        if [ -f aicore-cli ]; then
-          chmod +x aicore-cli
-          sudo mv aicore-cli /usr/local/bin/aicore
-          echo "AI Core CLI installed successfully"
-          
-          # Test the installation
-          if command -v aicore &> /dev/null; then
-            echo "CLI is available in PATH"
-            # Basic test that doesn't require authentication
-            aicore --help || echo "Help command executed"
-          else
-            echo "CLI installed but not in PATH"
-          fi
-        else
-          echo "ERROR: Could not download AI Core CLI"
-          echo "Please manually download the CLI from:"
-          echo "1. SAP BTP Cockpit → AI Core → Documentation"
-          echo "2. Or visit: https://help.sap.com/docs/ai-core"
-          echo "3. Look for 'Command Line Interface' download"
+        if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+          echo "Failed to get access token. Response: $TOKEN_RESPONSE"
           exit 1
         fi
+        
+        echo "Successfully obtained access token"
+        
+        # Create secrets using API
+        echo "Creating Supabase secret..."
+        SUPABASE_SECRET_DATA=$(jq -n \
+          --arg url "${{ secrets.SUPABASE_URL }}" \
+          --arg key "${{ secrets.SUPABASE_KEY }}" \
+          '{"SUPABASE_URL": $url, "SUPABASE_KEY": $key}')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"name\": \"supabase-secret\",
+            \"data\": $SUPABASE_SECRET_DATA,
+            \"labels\": {\"ai.sap.com/resourcePlan\": \"free\"}
+          }"
+        
+        echo "Creating Gemini secret..."
+        GEMINI_SECRET_DATA=$(jq -n \
+          --arg key "${{ secrets.GEMINI_API_KEY }}" \
+          '{"GEMINI_API_KEY": $key}')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"name\": \"gemini-secret\",
+            \"data\": $GEMINI_SECRET_DATA,
+            \"labels\": {\"ai.sap.com/resourcePlan\": \"free\"}
+          }"
+        
+        echo "Creating Docker registry secret..."
+        DOCKER_AUTH=$(echo -n "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" | base64 | tr -d '\n')
+        DOCKER_CONFIG=$(jq -n \
+          --arg server "https://index.docker.io/v1/" \
+          --arg username "${{ secrets.DOCKERHUB_USERNAME }}" \
+          --arg password "${{ secrets.DOCKERHUB_TOKEN }}" \
+          --arg auth "$DOCKER_AUTH" \
+          '{
+            "auths": {
+              ($server): {
+                "username": $username,
+                "password": $password,
+                "auth": $auth
+              }
+            }
+          }')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/secrets" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"name\": \"docker-registry-secret\",
+            \"type\": \"kubernetes.io/dockerconfigjson\",
+            \"data\": $DOCKER_CONFIG,
+            \"labels\": {\"ai.sap.com/resourcePlan\": \"free\"}
+          }"
+        
+        # Create workflow template
+        echo "Creating workflow template..."
+        
+        # Read and modify the workflow template
+        WORKFLOW_TEMPLATE=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: argoproj.io\/v1alpha1/,/^---$/p' | head -n -1)
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/admin/workflowtemplates" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/yaml" \
+          --data-binary "$WORKFLOW_TEMPLATE"
+        
+        # Create deployment
+        echo "Creating deployment..."
+        
+        # Read and modify the deployment manifest
+        DEPLOYMENT_MANIFEST=$(cat sap_ai_core_deployment.yaml | sed -n '/^apiVersion: ai.sap.com\/v1alpha1/,/$/p')
+        
+        curl -X POST "${{ secrets.AI_API_URL }}/v2/lm/deployments" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/yaml" \
+          --data-binary "$DEPLOYMENT_MANIFEST"
+        
+        echo "Deployment completed successfully!"
 
-    # Create secrets in AI Core
-    - name: Create Supabase Secret in AI Core
+    # Verify deployment
+    - name: Verify Deployment
       run: |
-        aicore secret create \
-          --name supabase-secret \
-          --data SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
-          --data SUPABASE_KEY=${{ secrets.SUPABASE_KEY }} \
-          --label "ai.sap.com/resourcePlan=free"
-
-    - name: Create Gemini Secret in AI Core
-      run: |
-        aicore secret create \
-          --name gemini-secret \
-          --data GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
-          --label "ai.sap.com/resourcePlan=free"
-
-    # Create Docker registry secret
-    - name: Create Docker Registry Secret
-      run: |
-        aicore secret create \
-          --name docker-registry-secret \
-          --type kubernetes.io/dockerconfigjson \
-          --docker-server https://index.docker.io/v1/ \
-          --docker-username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --docker-password ${{ secrets.DOCKERHUB_TOKEN }} \
-          --label "ai.sap.com/resourcePlan=free"
-
-    # Login to AI Core
-    - name: Login to AI Core
-      run: |
-        aicore login \
-          --url "${{ secrets.AI_API_URL }}" \
-          --clientid "${{ secrets.CLIENT_ID }}" \
-          --clientsecret "${{ secrets.CLIENT_SECRET }}" \
-          --tokenurl "${{ secrets.AUTH_URL }}"
-
-    # Push Workflow Template
-    - name: Push Workflow Template
-      run: |
-        aicore workflow push -f sap_ai_core_deployment.yaml
-
-    # Create Deployment
-    - name: Create Deployment
-      run: |
-        aicore deployment create -f sap_ai_core_deployment.yaml
-
-    # Get Deployment URL
-    - name: Get Deployment URL
-      run: |
-        echo "Deployment status:"
-        aicore deployment list
-        echo -e "\nTo get the service URL, run: aicore service list"
+        # Get access token again for verification
+        TOKEN_RESPONSE=$(curl -s -X POST "${{ secrets.AUTH_URL }}" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "grant_type=client_credentials&client_id=${{ secrets.CLIENT_ID }}&client_secret=${{ secrets.CLIENT_SECRET }}")
+        
+        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+        
+        # Check deployment status
+        echo "Checking deployment status..."
+        curl -s -X GET "${{ secrets.AI_API_URL }}/v2/lm/deployments" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+        
+        echo -e "\nDeployment process completed!"
+        echo "Check your SAP AI Core cockpit for detailed status."
