@@ -1,7 +1,7 @@
 apiVersion: ai.sap.com/v1alpha1
 kind: ServingTemplate
 metadata:
-  name: sustainability-chatbot-serving   # unique name
+  name: sustainability-chatbot-serving   
   annotations:
     scenarios.ai.sap.com/name: chatbot-scenario
     executables.ai.sap.com/name: chatbot-executable
@@ -38,3 +38,6 @@ spec:
                 secretKeyRef:
                   name: gemini-secret
                   key: GEMINI_API_KEY
+      
+      imagePullSecrets:
+        - name: dockerhub-secret
