@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the rest of the source
 COPY . .
 
-EXPOSE 8000
+# Expose the same port as in ServingTemplate
+EXPOSE 5000
 
-# Start FastAPI (ensure 'main.py' and 'app' exist)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI (correct module path for KServe)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
