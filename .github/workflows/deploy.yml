@@ -38,14 +38,19 @@ jobs:
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-    # Install AI Core CLI
+    # Install AI Core CLI - FIXED VERSION
     - name: Install AI Core CLI
       run: |
-        # Download the AI Core CLI from SAP's repository
-        curl -LO https://github.com/SAP/ai-core-sdk/releases/latest/download/ai-core-cli-linux-amd64
-        chmod +x ai-core-cli-linux-amd64
-        sudo mv ai-core-cli-linux-amd64 /usr/local/bin/aicore
+        # Install Node.js (required for SAP AI Core CLI)
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        
+        # Install SAP AI Core CLI using npm
+        sudo npm install -g @sap/ai-core-cli
+        
+        # Verify installation
         aicore version
+        echo "AI Core CLI installed successfully"
 
     # Create secrets in AI Core
     - name: Create Supabase Secret in AI Core
