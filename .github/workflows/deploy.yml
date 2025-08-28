@@ -37,13 +37,22 @@ jobs:
       with:
         version: 'v1.26.0'
 
+    # Get SAP AI Core Access Token
+    - name: Get AI Core Token
+      id: get_token
+      run: |
+        response=$(curl -s -X POST "${{ secrets.AUTH_URL }}" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "grant_type=client_credentials&client_id=${{ secrets.CLIENT_ID }}&client_secret=${{ secrets.CLIENT_SECRET }}")
+        token=$(echo $response | jq -r .access_token)
+        echo "TOKEN=$token" >> $GITHUB_ENV
+
     # Configure kubeconfig for SAP AI Core
     - name: Configure kubeconfig
       run: |
         mkdir -p $HOME/.kube
-        # Build kubeconfig dynamically using AI Core details
-        kubectl config set-cluster ai-core --server=${{ secrets.AI_CORE_API_URL }} --insecure-skip-tls-verify=true
-        kubectl config set-credentials ai-core-user --token=${{ secrets.AI_CORE_TOKEN }}
+        kubectl config set-cluster ai-core --server=${{ secrets.AI_API_URL }} --insecure-skip-tls-verify=true
+        kubectl config set-credentials ai-core-user --token=$TOKEN
         kubectl config set-context ai-core-context --cluster=ai-core --user=ai-core-user
         kubectl config use-context ai-core-context
 
