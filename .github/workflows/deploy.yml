@@ -32,12 +32,8 @@ jobs:
         docker tag sustainability-chatbo:latest ${{ secrets.DOCKER_USERNAME }}/sustainability-chatbo:latest
         docker push ${{ secrets.DOCKER_USERNAME }}/sustainability-chatbo:latest
 
-    # SAP AI Core Deployment
+    # Deploy to SAP AI Core (via kubectl)
     - name: Deploy to SAP AI Core
       run: |
         echo "Deploying to SAP AI Core..."
-        # Replace these values with your SAP AI Core deployment details
-        export SAP_AI_CORE_DEPLOYMENT_NAME="sustainability-chatbo-deploy"
-        export SAP_AI_CORE_NAMESPACE="default"
-        # Apply deployment using kubectl (assuming SAP AI Core uses kubeconfig setup)
         kubectl apply -f sap_ai_core_deployment.yaml

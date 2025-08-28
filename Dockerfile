@@ -13,7 +13,7 @@ RUN pip install --upgrade pip
 # Install dependencies
 RUN pip install -r requirements.txt
 
-# Expose the port FastAPI will run on
+# Expose FastAPI port
 EXPOSE 8000
 
 # Start FastAPI
