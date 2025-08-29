@@ -7,6 +7,7 @@ metadata:
     scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
     executables.ai.sap.com/name: sustainability-chatbot-exec
     executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
+    ai.sap.com/resource-group: default
   labels:
     ai.sap.com/version: "0.1.0"
     scenarios.ai.sap.com/id: "chatbot-scenario"
