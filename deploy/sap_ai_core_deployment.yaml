@@ -7,10 +7,10 @@ metadata:
     scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
     executables.ai.sap.com/name: sustainability-chatbot-exec
     executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
-    ai.sap.com/resource-group: default
   labels:
     ai.sap.com/version: "0.1.0"
     scenarios.ai.sap.com/id: "chatbot-scenario"
+    ai.sap.com/resourcePlan: "default"      # <- Resource Group added here
 spec:
   inputs:
     parameters:
@@ -27,7 +27,7 @@ spec:
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
-        ai.sap.com/resourcePlan: starter
+        ai.sap.com/resourcePlan: default        # <- Resource Group added here too
     spec: |
       predictor:
         minReplicas: 1
