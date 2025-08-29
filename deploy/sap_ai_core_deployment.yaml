@@ -10,7 +10,6 @@ metadata:
   labels:
     ai.sap.com/version: "0.1.0"
     scenarios.ai.sap.com/id: "chatbot-scenario"
-    # REMOVE resourcePlan from here ←
 spec:
   inputs:
     parameters:
@@ -27,7 +26,7 @@ spec:
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
-        ai.sap.com/resourcePlan: default  # ← ONLY keep it here
+        ai.sap.com/resourcePlan: starter
     spec: |
       predictor:
         minReplicas: 1
