@@ -1,4 +1,4 @@
-name: Build & Deploy SAP AI Core
+name: Build & Validate SAP AI Core
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,13 +31,13 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-      # 5) Install jq and SAP AI Core SDK
+      # 5) Install jq (for parsing JSON) and SAP AI Core SDK
       - name: Install tools
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
           pip install --user ai-core-sdk
-          echo "$HOME/.local/bin" >> $GITHUB_PATH   # 👈 so `aicore` is found
+          echo "$HOME/.local/bin" >> $GITHUB_PATH  # make aicore CLI visible
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
       - name: Get AI Core OAuth Token
@@ -68,19 +68,7 @@ jobs:
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
-      # 8) Create AI Core Configuration
-      - name: Create AI Core Configuration
-        run: |
-          echo "Creating AI Core Configuration..."
-          aicore configuration create --file deploy/sap_ai_core_configuration.yaml || echo "Configuration may already exist"
-
-      # 9) Create AI Core Deployment
-      - name: Create AI Core Deployment
-        run: |
-          echo "Creating AI Core Deployment..."
-          aicore deployment create --file deploy/sap_ai_core_deployment.yaml || echo "Deployment may already exist"
-
-      # 10) Output the image URL
+      # 8) Output the image URL for reference (you'll need this in Launchpad)
       - name: Print image URL for Launchpad
         run: |
           echo "Container image to use in Serving Template:"
