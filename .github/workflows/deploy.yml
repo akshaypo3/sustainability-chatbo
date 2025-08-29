@@ -67,7 +67,19 @@ jobs:
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
-      # 8) Output the image URL for reference (you'll need this in Launchpad)
+      # 8) Apply Configuration (sap_ai_core_configuration.yaml)
+      - name: Apply AI Core Configuration
+        run: |
+          echo "Applying AI Core Configuration..."
+          aicore apply -f deploy/sap_ai_core_configuration.yaml
+
+      # 9) Apply Deployment (sap_ai_core_deployment.yaml)
+      - name: Apply AI Core Deployment
+        run: |
+          echo "Applying AI Core Deployment..."
+          aicore apply -f deploy/sap_ai_core_deployment.yaml
+
+      # 10) Output the image URL for reference (you'll need this in Launchpad)
       - name: Print image URL for Launchpad
         run: |
           echo "Container image to use in Serving Template:"
