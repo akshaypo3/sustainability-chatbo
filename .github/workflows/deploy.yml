@@ -30,19 +30,14 @@ jobs:
       - name: Push Docker image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
-          
-      - name: Add aicore to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
 
       # 5) Install jq (for parsing JSON) and SAP AI Core SDK (correct package)
-      - name: Install SAP AI Core CLI
+      - name: Install tools
         run: |
-          curl -L "https://github.com/SAP/ai-core-cli/releases/latest/download/aicore-linux-amd64" -o aicore
-          chmod +x aicore
-          sudo mv aicore /usr/local/bin/aicore
-          aicore version
-
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install --user ai-core-sdk
+          echo "$HOME/.local/bin" >> $GITHUB_PATH   # 👈 make aicore CLI visible
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
       - name: Get AI Core OAuth Token
