@@ -30,6 +30,10 @@ jobs:
       - name: Push Docker image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
+          
+      - name: Add aicore to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
 
       # 5) Install jq (for parsing JSON) and SAP AI Core SDK (correct package)
       - name: Install tools
