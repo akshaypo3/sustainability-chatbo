@@ -38,12 +38,11 @@ jobs:
       # 5) Install jq (for parsing JSON) and SAP AI Core SDK (correct package)
       - name: Install SAP AI Core CLI
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
           curl -L "https://github.com/SAP/ai-core-cli/releases/latest/download/aicore-linux-amd64" -o aicore
           chmod +x aicore
-          sudo mv aicore /usr/local/bin/
+          sudo mv aicore /usr/local/bin/aicore
           aicore version
+
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
       - name: Get AI Core OAuth Token
