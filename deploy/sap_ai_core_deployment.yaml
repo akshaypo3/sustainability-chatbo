@@ -13,7 +13,7 @@ metadata:
     scenarios.ai.sap.com/id: "chatbot-scenario"
 spec:
   configuration:
-    name: chatbot-config
+    name: chatbot-config   # 👈 links to your configuration
   inputs:
     parameters:
       - name: image
