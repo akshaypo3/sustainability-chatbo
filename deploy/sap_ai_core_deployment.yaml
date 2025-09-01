@@ -17,10 +17,6 @@ spec:
         type: string
         default: "docker.io/akshay1p1/sustainability-chatbo:latest"
         description: "Docker image for chatbot"
-      - name: resourceGroup  # Add this parameter
-        type: string
-        default: "default"   # CHANGE TO "default"
-        description: "Resource group for deployment"
     artifacts: []
   template:
     apiVersion: "serving.kserve.io/v1beta1"

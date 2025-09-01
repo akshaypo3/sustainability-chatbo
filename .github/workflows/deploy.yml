@@ -1,4 +1,4 @@
-name: Build & Deploy to SAP AI Core
+name: Build & Validate SAP AI Core
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl
+          sudo apt-get install -y jq
           pip install --user ai-core-sdk
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
@@ -49,7 +49,6 @@ jobs:
           response=$(curl -s -X POST "$AUTH_URL" \
             -H "Content-Type: application/x-www-form-urlencoded" \
             -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
-          echo "Token response:"
           echo "$response" | jq .
           token=$(echo "$response" | jq -r '.access_token')
           if [ -z "$token" ] || [ "$token" = "null" ]; then
@@ -57,72 +56,19 @@ jobs:
           fi
           echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
 
-      # 7) Debug - Check environment variables
-      - name: Debug - Check variables
-        env:
-          AI_API_URL: ${{ secrets.AI_API_URL }}
-          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
-        run: |
-          echo "AI_API_URL: $AI_API_URL"
-          echo "RESOURCE_GROUP: $RESOURCE_GROUP"
-          echo "AICORE_TOKEN length: ${#AICORE_TOKEN} characters"
-
-      # 8) Validate AI Core API connectivity
+      # 7) Validate AI Core API connectivity
       - name: Validate AI Core API connectivity
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
         run: |
           echo "Listing resource groups to validate connectivity..."
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
-       # 9) Create or update Configuration in SAP AI Core
-      - name: Deploy Configuration to SAP AI Core
-        env:
-          AI_API_URL: ${{ secrets.AI_API_URL }}
-          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+      # 8) Output image URL for Launchpad
+      - name: Print image URL for Launchpad
         run: |
-          echo "Using resource group: ${RESOURCE_GROUP:-default}"
-
-          # Create configuration.yaml without EOF
-          echo "apiVersion: ai.sap.com/v1alpha1" > configuration.yaml
-          echo "kind: Configuration" >> configuration.yaml
-          echo "metadata:" >> configuration.yaml
-          echo "  name: sustainability-chatbot-config" >> configuration.yaml
-          echo "  annotations:" >> configuration.yaml
-          echo "    scenarios.ai.sap.com/name: \"chatbot-scenario\"" >> configuration.yaml
-          echo "    executables.ai.sap.com/name: \"sustainability-chatbot-exec\"" >> configuration.yaml
-          echo "  labels:" >> configuration.yaml
-          echo "    ai.sap.com/resourceGroup: \"${RESOURCE_GROUP:-default}\"" >> configuration.yaml
-          echo "spec:" >> configuration.yaml
-          echo "  template:" >> configuration.yaml
-          echo "    name: sustainability-chatbot-serving" >> configuration.yaml
-          echo "  inputs:" >> configuration.yaml
-          echo "    parameters:" >> configuration.yaml
-          echo "      - name: image" >> configuration.yaml
-          echo "        value: \"docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest\"" >> configuration.yaml
-          echo "      - name: resourceGroup" >> configuration.yaml
-          echo "        value: \"${RESOURCE_GROUP:-default}\"" >> configuration.yaml
-
-          echo "Deploying to resource group: ${RESOURCE_GROUP:-default}"
-          response=$(curl -s -o response.txt -w "%{http_code}" -X POST \
-            "$AI_API_URL/v2/lm/configurations?resourceGroup=${RESOURCE_GROUP:-default}" \
-            -H "Authorization: Bearer $AICORE_TOKEN" \
-            -H "Content-Type: application/yaml" \
-            -H "AI-Resource-Group: ${RESOURCE_GROUP:-default}" \
-            --data-binary @configuration.yaml)
-
-          echo "HTTP Status: $response"
-          cat response.txt
-
-          if [ "$response" -eq 201 ] || [ "$response" -eq 200 ]; then
-            echo "✅ Configuration deployed successfully!"
-          else
-            echo "❌ Failed to deploy configuration."
-            exit 1
-          fi
+          echo "Container image to use in Serving Template:"
+          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
