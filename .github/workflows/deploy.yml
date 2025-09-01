@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout
+      # 1) Checkout repo
       - name: Checkout repo
         uses: actions/checkout@v3
 
@@ -65,10 +65,10 @@ jobs:
           echo "Listing resource groups to validate connectivity..."
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                "$AI_API_URL/v2/resourceGroups" | jq .
-          echo "Success. Your creds and API URL are valid."
+          echo "✅ Success. Your creds and API URL are valid."
 
       # 8) Output image URL for Launchpad
       - name: Print image URL for Launchpad
         run: |
-          echo "Container image to use in Serving Template:"
-          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+          echo "✅ Container image to use in Serving Template:"
+          echo "docker.io/akshay1p1/sustainability-chatbo:latest"
