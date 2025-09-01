@@ -1,0 +1,18 @@
+apiVersion: ai.sap.com/v1alpha1
+kind: Configuration
+metadata:
+  name: sustainability-chatbot-config
+  annotations:
+    scenarios.ai.sap.com/name: chatbot-scenario
+    executables.ai.sap.com/name: sustainability-chatbot-exec
+  labels:
+    ai.sap.com/resourceGroup: default  # CHANGE TO "default"
+spec:
+  template:
+    name: sustainability-chatbot-serving
+  inputs:
+    parameters:
+      - name: image
+        value: "docker.io/akshay1p1/sustainability-chatbo:latest"
+      - name: resourceGroup
+        value: "default"  # CHANGE TO "default"

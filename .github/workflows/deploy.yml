@@ -66,8 +66,23 @@ jobs:
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
+          # Add this step after the validation step
 
-      # 8) Output image URL for Launchpad
+        # 8) Validation step
+      - name: Deploy to SAP AI Core
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }} # Add this to your secrets
+        run: |
+          # Create deployment using resource group
+          curl -X POST "$AI_API_URL/v2/lm/configurations?resourceGroup=$RESOURCE_GROUP" \
+            -H "Authorization: Bearer $AICORE_TOKEN" \
+            -H "Content-Type: application/yaml" \
+            -H "AI-Resource-Group: $RESOURCE_GROUP" \
+            --data-binary @deploy/sap_ai_core_deployment.yaml
+
+      # 9) Output image URL for Launchpad
       - name: Print image URL for Launchpad
         run: |
           echo "Container image to use in Serving Template:"
