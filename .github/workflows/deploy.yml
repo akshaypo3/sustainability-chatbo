@@ -57,48 +57,62 @@ jobs:
           fi
           echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
 
-      # 7) Validate AI Core API connectivity
+      # 7) Debug - Check environment variables
+      - name: Debug - Check variables
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
+        run: |
+          echo "AI_API_URL: $AI_API_URL"
+          echo "RESOURCE_GROUP: $RESOURCE_GROUP"
+          echo "AICORE_TOKEN length: ${#AICORE_TOKEN} characters"
+
+      # 8) Validate AI Core API connectivity
       - name: Validate AI Core API connectivity
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
         run: |
           echo "Listing resource groups to validate connectivity..."
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
-      # 8) Create or update Configuration in SAP AI Core
+      # 9) Create or update Configuration in SAP AI Core
       - name: Deploy Configuration to SAP AI Core
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}  # FIXED WITH FALLBACK
         run: |
-          # Create configuration.yaml with the correct image name
+          # Debug first
+          echo "Using resource group: $RESOURCE_GROUP"
+          
+          # Create configuration.yaml
           cat > configuration.yaml << EOF
-          apiVersion: ai.sap.com/v1alpha1
-          kind: Configuration
-          metadata:
-            name: sustainability-chatbot-config
-            annotations:
-              scenarios.ai.sap.com/name: "chatbot-scenario"
-              executables.ai.sap.com/name: "sustainability-chatbot-exec"
-            labels:
-              ai.sap.com/resourceGroup: "$RESOURCE_GROUP"
-          spec:
-            template:
-              name: sustainability-chatbot-serving
-            inputs:
-              parameters:
-                - name: image
-                  value: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-                - name: resourceGroup
-                  value: "$RESOURCE_GROUP"
-          EOF
+apiVersion: ai.sap.com/v1alpha1
+kind: Configuration
+metadata:
+  name: sustainability-chatbot-config
+  annotations:
+    scenarios.ai.sap.com/name: "chatbot-scenario"
+    executables.ai.sap.com/name: "sustainability-chatbot-exec"
+  labels:
+    ai.sap.com/resourceGroup: "$RESOURCE_GROUP"
+spec:
+  template:
+    name: sustainability-chatbot-serving
+  inputs:
+    parameters:
+      - name: image
+        value: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+      - name: resourceGroup
+        value: "$RESOURCE_GROUP"
+EOF
 
-          echo "Deploying configuration to SAP AI Core..."
+          echo "Deploying to resource group: $RESOURCE_GROUP"
           response=$(curl -s -o response.txt -w "%{http_code}" -X POST \
             "$AI_API_URL/v2/lm/configurations?resourceGroup=$RESOURCE_GROUP" \
             -H "Authorization: Bearer $AICORE_TOKEN" \
@@ -106,18 +120,21 @@ jobs:
             -H "AI-Resource-Group: $RESOURCE_GROUP" \
             --data-binary @configuration.yaml)
           
-          if [ "$response" -eq 201 ] || [ "$response" -eq 200 ]; then
-            echo "Configuration deployed successfully!"
-            cat response.txt | jq .
-          else
-            echo "Failed to deploy configuration. HTTP Status: $response"
+          echo "HTTP Status: $response"
+          if [ -f response.txt ]; then
             cat response.txt
+          fi
+          
+          if [ "$response" -eq 201 ] || [ "$response" -eq 200 ]; then
+            echo "✅ Configuration deployed successfully!"
+          else
+            echo "❌ Failed to deploy configuration."
             exit 1
           fi
 
-      # 9) Output deployment info
+      # 10) Output deployment info
       - name: Print deployment information
         run: |
           echo "Deployment completed successfully!"
           echo "Container image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-          echo "To test your deployment, use the SAP AI Core API with resourceGroup: ${{ secrets.RESOURCE_GROUP }}"
+          echo "To test your deployment, use the SAP AI Core API with resourceGroup: ${{ secrets.RESOURCE_GROUP || 'default' }}"
