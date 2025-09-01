@@ -1,4 +1,4 @@
-name: Build & Validate SAP AI Core
+name: Build & Deploy to SAP AI Core
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-validate:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq curl
           pip install --user ai-core-sdk
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
@@ -49,6 +49,7 @@ jobs:
           response=$(curl -s -X POST "$AUTH_URL" \
             -H "Content-Type: application/x-www-form-urlencoded" \
             -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
+          echo "Token response:"
           echo "$response" | jq .
           token=$(echo "$response" | jq -r '.access_token')
           if [ -z "$token" ] || [ "$token" = "null" ]; then
@@ -61,29 +62,62 @@ jobs:
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         run: |
           echo "Listing resource groups to validate connectivity..."
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
-          # Add this step after the validation step
 
-        # 8) Validation step
-      - name: Deploy to SAP AI Core
+      # 8) Create or update Configuration in SAP AI Core
+      - name: Deploy Configuration to SAP AI Core
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }} # Add this to your secrets
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         run: |
-          # Create deployment using resource group
-          curl -X POST "$AI_API_URL/v2/lm/configurations?resourceGroup=$RESOURCE_GROUP" \
+          # Create configuration.yaml with the correct image name
+          cat > configuration.yaml << EOF
+          apiVersion: ai.sap.com/v1alpha1
+          kind: Configuration
+          metadata:
+            name: sustainability-chatbot-config
+            annotations:
+              scenarios.ai.sap.com/name: "chatbot-scenario"
+              executables.ai.sap.com/name: "sustainability-chatbot-exec"
+            labels:
+              ai.sap.com/resourceGroup: "$RESOURCE_GROUP"
+          spec:
+            template:
+              name: sustainability-chatbot-serving
+            inputs:
+              parameters:
+                - name: image
+                  value: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+                - name: resourceGroup
+                  value: "$RESOURCE_GROUP"
+          EOF
+
+          echo "Deploying configuration to SAP AI Core..."
+          response=$(curl -s -o response.txt -w "%{http_code}" -X POST \
+            "$AI_API_URL/v2/lm/configurations?resourceGroup=$RESOURCE_GROUP" \
             -H "Authorization: Bearer $AICORE_TOKEN" \
             -H "Content-Type: application/yaml" \
             -H "AI-Resource-Group: $RESOURCE_GROUP" \
-            --data-binary @deploy/sap_ai_core_deployment.yaml
+            --data-binary @configuration.yaml)
+          
+          if [ "$response" -eq 201 ] || [ "$response" -eq 200 ]; then
+            echo "Configuration deployed successfully!"
+            cat response.txt | jq .
+          else
+            echo "Failed to deploy configuration. HTTP Status: $response"
+            cat response.txt
+            exit 1
+          fi
 
-      # 9) Output image URL for Launchpad
-      - name: Print image URL for Launchpad
+      # 9) Output deployment info
+      - name: Print deployment information
         run: |
-          echo "Container image to use in Serving Template:"
-          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+          echo "Deployment completed successfully!"
+          echo "Container image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+          echo "To test your deployment, use the SAP AI Core API with resourceGroup: ${{ secrets.RESOURCE_GROUP }}"
