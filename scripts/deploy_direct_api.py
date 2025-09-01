@@ -14,23 +14,37 @@ def main():
     dockerhub_username = os.environ.get('DOCKERHUB_USERNAME')
     
     print(f"Resource Group: {resource_group}")
+    print(f"DockerHub Username: {dockerhub_username}")
+    
+    # Validate required environment variables
+    required_vars = ['AUTH_URL', 'CLIENT_ID', 'CLIENT_SECRET', 'AI_API_URL', 'DOCKERHUB_USERNAME']
+    for var in required_vars:
+        if not os.environ.get(var):
+            print(f"❌ Missing required environment variable: {var}")
+            exit(1)
     
     # Get access token
-    token_response = requests.post(
-        auth_url,
-        data={
-            'grant_type': 'client_credentials',
-            'client_id': client_id,
-            'client_secret': client_secret
-        },
-        headers={'Content-Type': 'application/x-www-form-urlencoded'}
-    )
-    
-    if token_response.status_code != 200:
-        print(f"❌ Failed to get access token: {token_response.text}")
+    try:
+        token_response = requests.post(
+            auth_url,
+            data={
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        
+        if token_response.status_code != 200:
+            print(f"❌ Failed to get access token: {token_response.text}")
+            exit(1)
+        
+        access_token = token_response.json()['access_token']
+        print("✅ Successfully obtained access token")
+        
+    except Exception as e:
+        print(f"❌ Failed to get access token: {str(e)}")
         exit(1)
-    
-    access_token = token_response.json()['access_token']
     
     # Configuration data
     config_data = {
@@ -68,21 +82,26 @@ def main():
     # Create configuration via direct API call
     headers = {
         'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/yaml',
+        'Content-Type': 'application/json',
         'AI-Resource-Group': resource_group
     }
     
     url = f"{ai_api_url}/v2/lm/configurations?resourceGroup={resource_group}"
     
     print("🚀 Deploying configuration to SAP AI Core...")
-    response = requests.post(url, headers=headers, data=json.dumps(config_data))
-    
-    if response.status_code in [200, 201]:
-        print("✅ Configuration deployed successfully!")
-        print(f"📋 Response: {response.text}")
-    else:
-        print(f"❌ Failed to deploy configuration. Status: {response.status_code}")
-        print(f"📝 Error details: {response.text}")
+    try:
+        response = requests.post(url, headers=headers, json=config_data)
+        
+        if response.status_code in [200, 201]:
+            print("✅ Configuration deployed successfully!")
+            print(f"📋 Response: {response.json()}")
+        else:
+            print(f"❌ Failed to deploy configuration. Status: {response.status_code}")
+            print(f"📝 Error details: {response.text}")
+            exit(1)
+            
+    except Exception as e:
+        print(f"❌ API call failed: {str(e)}")
         exit(1)
 
 if __name__ == "__main__":
