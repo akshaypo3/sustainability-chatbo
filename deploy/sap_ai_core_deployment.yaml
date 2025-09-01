@@ -3,20 +3,24 @@ kind: ServingTemplate
 metadata:
   name: sustainability-chatbot-serving
   annotations:
-    scenarios.ai.sap.com/name: chatbot-scenario
+    scenarios.ai.sap.com/name: "sustainability-chatbot-scenario"
     scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
-    executables.ai.sap.com/name: sustainability-chatbot-exec
+    executables.ai.sap.com/name: "sustainability-chatbot-executable"
     executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
   labels:
-    ai.sap.com/version: "0.1.0"
-    scenarios.ai.sap.com/id: "chatbot-scenario"
+    ai.sap.com/version: "1.0.0"
+    scenarios.ai.sap.com/id: "sustainability-chatbot-scenario"
 spec:
   inputs:
     parameters:
       - name: image
         type: string
-        default: "docker.io/akshay1p1/sustainability-chatbo:latest"
-        description: "Docker image for chatbot"
+        default: "docker.io/akshay1p1/sustainability-chatbot:latest"
+        description: "Docker image for sustainability chatbot"
+      - name: resourceGroup
+        type: string
+        default: "default"
+        description: "Resource group for deployment"
     artifacts: []
   template:
     apiVersion: "serving.kserve.io/v1beta1"
