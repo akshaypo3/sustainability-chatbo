@@ -36,7 +36,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
-          pip install --user ai-core-sdk
+          pip install --user sap-ai-core-sdk
 
       # 6) Get OAuth token from SAP BTP (XSUAA)
       - name: Get AI Core OAuth Token
@@ -71,4 +71,4 @@ jobs:
       - name: Print image URL for Launchpad
         run: |
           echo "✅ Container image to use in Serving Template:"
-          echo "docker.io/akshay1p1/sustainability-chatbo:latest"
+          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
