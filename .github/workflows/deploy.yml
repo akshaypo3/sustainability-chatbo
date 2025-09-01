@@ -36,7 +36,7 @@ jobs:
         run: |
           pip install ai-core-sdk
 
-      # 6) Deploy using Direct API
+      # 6) Deploy using Final Solution
       - name: Deploy to SAP AI Core
         env:
           AUTH_URL: ${{ secrets.AUTH_URL }}
@@ -46,9 +46,7 @@ jobs:
           RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          python scripts/deploy_direct_api.py
-              run: |
-                python scripts/deploy_ai_core.py
+          python scripts/deploy_final.py
 
       # 7) Output deployment info
       - name: Print deployment information
