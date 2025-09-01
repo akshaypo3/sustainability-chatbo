@@ -80,61 +80,49 @@ jobs:
                "$AI_API_URL/v2/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
-      # 9) Create or update Configuration in SAP AI Core
+       # 9) Create or update Configuration in SAP AI Core
       - name: Deploy Configuration to SAP AI Core
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
           AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}  # FIXED WITH FALLBACK
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         run: |
-          # Debug first
-          echo "Using resource group: $RESOURCE_GROUP"
-          
-          # Create configuration.yaml
-          cat > configuration.yaml << EOF
-apiVersion: ai.sap.com/v1alpha1
-kind: Configuration
-metadata:
-  name: sustainability-chatbot-config
-  annotations:
-    scenarios.ai.sap.com/name: "chatbot-scenario"
-    executables.ai.sap.com/name: "sustainability-chatbot-exec"
-  labels:
-    ai.sap.com/resourceGroup: "$RESOURCE_GROUP"
-spec:
-  template:
-    name: sustainability-chatbot-serving
-  inputs:
-    parameters:
-      - name: image
-        value: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-      - name: resourceGroup
-        value: "$RESOURCE_GROUP"
-EOF
+          echo "Using resource group: ${RESOURCE_GROUP:-default}"
 
-          echo "Deploying to resource group: $RESOURCE_GROUP"
+          # Create configuration.yaml without EOF
+          echo "apiVersion: ai.sap.com/v1alpha1" > configuration.yaml
+          echo "kind: Configuration" >> configuration.yaml
+          echo "metadata:" >> configuration.yaml
+          echo "  name: sustainability-chatbot-config" >> configuration.yaml
+          echo "  annotations:" >> configuration.yaml
+          echo "    scenarios.ai.sap.com/name: \"chatbot-scenario\"" >> configuration.yaml
+          echo "    executables.ai.sap.com/name: \"sustainability-chatbot-exec\"" >> configuration.yaml
+          echo "  labels:" >> configuration.yaml
+          echo "    ai.sap.com/resourceGroup: \"${RESOURCE_GROUP:-default}\"" >> configuration.yaml
+          echo "spec:" >> configuration.yaml
+          echo "  template:" >> configuration.yaml
+          echo "    name: sustainability-chatbot-serving" >> configuration.yaml
+          echo "  inputs:" >> configuration.yaml
+          echo "    parameters:" >> configuration.yaml
+          echo "      - name: image" >> configuration.yaml
+          echo "        value: \"docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest\"" >> configuration.yaml
+          echo "      - name: resourceGroup" >> configuration.yaml
+          echo "        value: \"${RESOURCE_GROUP:-default}\"" >> configuration.yaml
+
+          echo "Deploying to resource group: ${RESOURCE_GROUP:-default}"
           response=$(curl -s -o response.txt -w "%{http_code}" -X POST \
-            "$AI_API_URL/v2/lm/configurations?resourceGroup=$RESOURCE_GROUP" \
+            "$AI_API_URL/v2/lm/configurations?resourceGroup=${RESOURCE_GROUP:-default}" \
             -H "Authorization: Bearer $AICORE_TOKEN" \
             -H "Content-Type: application/yaml" \
-            -H "AI-Resource-Group: $RESOURCE_GROUP" \
+            -H "AI-Resource-Group: ${RESOURCE_GROUP:-default}" \
             --data-binary @configuration.yaml)
-          
+
           echo "HTTP Status: $response"
-          if [ -f response.txt ]; then
-            cat response.txt
-          fi
-          
+          cat response.txt
+
           if [ "$response" -eq 201 ] || [ "$response" -eq 200 ]; then
             echo "✅ Configuration deployed successfully!"
           else
             echo "❌ Failed to deploy configuration."
             exit 1
           fi
-
-      # 10) Output deployment info
-      - name: Print deployment information
-        run: |
-          echo "Deployment completed successfully!"
-          echo "Container image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-          echo "To test your deployment, use the SAP AI Core API with resourceGroup: ${{ secrets.RESOURCE_GROUP || 'default' }}"
