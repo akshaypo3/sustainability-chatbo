@@ -1,4 +1,5 @@
 import os
+import json
 from ai_core_sdk.ai_core_v2_client import AICoreV2Client
 
 def main():
@@ -32,42 +33,49 @@ def main():
             resource_group=resource_group
         )
         
-        # Configuration data
+        # Configuration data - using the correct format for the SDK
         config_data = {
-            "apiVersion": "ai.sap.com/v1alpha1",
-            "kind": "Configuration",
-            "metadata": {
-                "name": "sustainability-chatbot-config",
-                "annotations": {
-                    "scenarios.ai.sap.com/name": "sustainability-chatbot-scenario",
-                    "executables.ai.sap.com/name": "sustainability-chatbot-executable"
-                },
-                "labels": {
-                    "ai.sap.com/resourceGroup": resource_group
-                }
+            "name": "sustainability-chatbot-config",
+            "annotations": {
+                "scenarios.ai.sap.com/name": "sustainability-chatbot-scenario",
+                "executables.ai.sap.com/name": "sustainability-chatbot-executable"
             },
-            "spec": {
-                "template": {
-                    "name": "sustainability-chatbot-serving"
-                },
-                "inputs": {
-                    "parameters": [
-                        {
-                            "name": "image",
-                            "value": f"docker.io/{dockerhub_username}/sustainability-chatbot:latest"
-                        },
-                        {
-                            "name": "resourceGroup",
-                            "value": resource_group
-                        }
-                    ]
-                }
+            "labels": {
+                "ai.sap.com/resourceGroup": resource_group
+            },
+            "template": {
+                "name": "sustainability-chatbot-serving"
+            },
+            "inputs": {
+                "parameters": [
+                    {
+                        "name": "image",
+                        "value": f"docker.io/{dockerhub_username}/sustainability-chatbot:latest"
+                    },
+                    {
+                        "name": "resourceGroup",
+                        "value": resource_group
+                    }
+                ]
             }
         }
         
-        # Create configuration
+        # Create configuration - CORRECT METHOD CALL
         print("🚀 Deploying configuration to SAP AI Core...")
-        response = client.configuration.create(body=config_data)
+        
+        # Try different method signatures based on SDK version
+        try:
+            # For newer SDK versions
+            response = client.configuration.create(config_data)
+        except TypeError:
+            # For older SDK versions
+            response = client.configuration.create(
+                name=config_data["name"],
+                annotations=config_data["annotations"],
+                labels=config_data["labels"],
+                template=config_data["template"],
+                inputs=config_data["inputs"]
+            )
         
         print("✅ Configuration deployed successfully!")
         print(f"📋 Configuration ID: {response.id}")
@@ -82,6 +90,8 @@ def main():
             print(f"📝 Error details: {e.response.text}")
         elif hasattr(e, 'body'):
             print(f"📝 Error details: {e.body}")
+        elif hasattr(e, 'args') and e.args:
+            print(f"📝 Error details: {e.args[0]}")
         
         exit(1)
 
