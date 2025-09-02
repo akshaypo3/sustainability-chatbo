@@ -32,6 +32,7 @@ def root():
     return {"message": "FastAPI + Supabase + Gemini ready!"}
 # Health check endpoint for SAP AI Core
 @app.get("/health")
+@app.get("/v1/health")
 def health_check():
     return JSONResponse(
         content={
