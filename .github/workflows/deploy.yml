@@ -1,4 +1,4 @@
-name: Build & Deploy to SAP AI Core
+name: Build & Validate SAP AI Core
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,33 +24,51 @@ jobs:
       # 3) Build Docker image
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest .
 
       # 4) Push Docker image
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-      # 5) Install AI Core SDK
-      - name: Install AI Core SDK
+      # 5) Install tools
+      - name: Install tools
         run: |
-          pip install ai-core-sdk
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install --user ai-core-sdk
 
-      # 6) Deploy using Final Solution
-      - name: Deploy to SAP AI Core
+      # 6) Get OAuth token from SAP BTP (XSUAA)
+      - name: Get AI Core OAuth Token
+        id: get_token
         env:
           AUTH_URL: ${{ secrets.AUTH_URL }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          AI_API_URL: ${{ secrets.AI_API_URL }}
-          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || 'default' }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          python scripts/deploy_final.py
+          response=$(curl -s -X POST "$AUTH_URL" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
+          echo "$response" | jq .
+          token=$(echo "$response" | jq -r '.access_token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "Failed to get access_token from AUTH_URL"; exit 1;
+          fi
+          echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
 
-      # 7) Output deployment info
-      - name: Print deployment information
+      # 7) Validate AI Core API connectivity
+      - name: Validate AI Core API connectivity
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
         run: |
-          echo "Deployment completed successfully!"
-          echo "Container image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest"
-          echo "To test your deployment, use the SAP AI Core API with resourceGroup: ${{ secrets.RESOURCE_GROUP || 'default' }}"
+          echo "Listing resource groups to validate connectivity..."
+          curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
+               "$AI_API_URL/v2/resourceGroups" | jq .
+          echo "Success. Your creds and API URL are valid."
+
+      # 8) Output image URL for Launchpad
+      - name: Print image URL for Launchpad
+        run: |
+          echo "Container image to use in Serving Template:"
+          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
