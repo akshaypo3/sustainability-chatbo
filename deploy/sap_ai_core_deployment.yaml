@@ -27,7 +27,6 @@ spec:
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
         ai.sap.com/resourcePlan: starter
-        ai.sap.com/resourceGroup: default   # 👈 Added this
     spec: |
       predictor:
         minReplicas: 1
