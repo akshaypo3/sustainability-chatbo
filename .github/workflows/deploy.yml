@@ -1,4 +1,4 @@
-name: Build & Deploy to SAP AI Core (Free Tier)
+name: Build & Push Docker Image
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,112 +31,17 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-      # 5) Install tools
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl
-
-      # 6) Get OAuth token from SAP BTP (XSUAA)
-      - name: Get AI Core OAuth Token
-        id: get_token
-        env:
-          AUTH_URL: ${{ secrets.AUTH_URL }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-        run: |
-          response=$(curl -s -X POST "$AUTH_URL" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
-          echo "Token response:"
-          echo "$response" | jq .
-          token=$(echo "$response" | jq -r '.access_token')
-          if [ -z "$token" ] || [ "$token" = "null" ]; then
-            echo "Failed to get access_token from AUTH_URL"; exit 1;
-          fi
-          echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
-
-      # 7) Use default resource group for free tier
-      - name: Set default resource group
-        run: |
-          echo "Using default resource group for free tier"
-          echo "RESOURCE_GROUP=default" >> $GITHUB_ENV
-
-      # 8) Apply the deployment configuration
-      - name: Deploy to SAP AI Core
-        env:
-          AI_API_URL: ${{ secrets.AI_API_URL }}
-          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
-          RESOURCE_GROUP: ${{ env.RESOURCE_GROUP }}
-        run: |
-          echo "Deploying serving template to resource group: $RESOURCE_GROUP"
-          
-          # First, check if deployment already exists and delete it
-          echo "Checking for existing deployment..."
-          existing_deploy=$(curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
-            -H "AI-Resource-Group: $RESOURCE_GROUP" \
-            "$AI_API_URL/v2/lm/servings/sustainability-chatbot-serving" || true)
-          
-          if echo "$existing_deploy" | jq -e '.name' > /dev/null 2>&1; then
-            echo "Deleting existing deployment..."
-            curl -X DELETE -H "Authorization: Bearer $AICORE_TOKEN" \
-              -H "AI-Resource-Group: $RESOURCE_GROUP" \
-              "$AI_API_URL/v2/lm/servings/sustainability-chatbot-serving"
-            echo "Waiting 10 seconds for cleanup..."
-            sleep 10
-          fi
-          
-          # Apply the deployment
-          response=$(curl -s -X POST \
-            -H "Authorization: Bearer $AICORE_TOKEN" \
-            -H "Content-Type: application/yaml" \
-            -H "AI-Resource-Group: $RESOURCE_GROUP" \
-            --data-binary "@deploy/sap_ai_core_deployment.yaml" \
-            "$AI_API_URL/v2/lm/servingtemplates")
-          
-          echo "Deployment response:"
-          echo "$response" | jq .
-          
-          if echo "$response" | jq -e '.name' > /dev/null; then
-            echo "Deployment successful!"
-            
-            echo "Waiting 60 seconds for deployment to initialize..."
-            sleep 60
-            
-            # Check deployment status
-            DEPLOYMENT_NAME="sustainability-chatbot-serving"
-            STATUS_RESPONSE=$(curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
-                                  -H "AI-Resource-Group: $RESOURCE_GROUP" \
-                                  "$AI_API_URL/v2/lm/servings/$DEPLOYMENT_NAME")
-            
-            echo "Deployment status:"
-            echo "$STATUS_RESPONSE" | jq .
-            
-            URL=$(echo "$STATUS_RESPONSE" | jq -r '.status.url // empty')
-            if [ -n "$URL" ] && [ "$URL" != "null" ]; then
-              echo "🚀 Deployment URL: $URL"
-              echo "DEPLOYMENT_URL=$URL" >> $GITHUB_ENV
-            else
-              echo "URL not available yet. It may take several minutes."
-              echo "Check SAP AI Core console for final status."
-            fi
-            
-          else
-            echo "Deployment failed!"
-            exit 1
-          fi
-
-      # 9) Output deployment information
-      - name: Print deployment details
+      # 5) Output image information
+      - name: Print image details
         run: |
           echo "=============================================="
-          echo " DEPLOYMENT COMPLETED"
+          echo " DOCKER IMAGE BUILT AND PUSHED"
           echo "=============================================="
-          echo "Container image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-          echo "Resource group: ${{ env.RESOURCE_GROUP }}"
-          if [ -n "$DEPLOYMENT_URL" ]; then
-            echo "Deployment URL: $DEPLOYMENT_URL"
-          else
-            echo "Deployment URL: Check SAP AI Core console for URL"
-          fi
+          echo "Image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+          echo "=============================================="
+          echo "Next steps:"
+          echo "1. Go to SAP AI Core Launchpad"
+          echo "2. Create/update your deployment configuration"
+          echo "3. Use the image URL above"
+          echo "4. Deploy manually"
           echo "=============================================="
