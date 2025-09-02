@@ -1,33 +1,37 @@
-aftern i pasted you rcodei got thi serro error when patching "/dev/shm/4191662314": ServingTemplate.ai.sap.com "sustainability-chatbot-serving" is invalid: spec.template: Invalid value: "string": spec.template in body must be of type object: "string" be careful this is my last code where aftern deployment its showing missing resource group apiVersion: ai.sap.com/v1alpha1
+apiVersion: ai.sap.com/v1alpha1
 kind: ServingTemplate
 metadata:
   name: sustainability-chatbot-serving
   annotations:
-    scenarios.ai.sap.com/name: chatbot-scenario
-    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
-    executables.ai.sap.com/name: sustainability-chatbot-exec
-    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
+    scenarios.ai.sap.com/name: "sustainability-chatbot-scenario"
+    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario using Gemini AI"
+    executables.ai.sap.com/name: "sustainability-chatbot-executable"
+    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container with Gemini AI integration"
   labels:
-    ai.sap.com/version: "0.1.0"
-    scenarios.ai.sap.com/id: "chatbot-scenario"
+    ai.sap.com/version: "1.0.0"
+    scenarios.ai.sap.com/id: "sustainability-chatbot-scenario"
 spec:
   inputs:
     parameters:
       - name: image
         type: string
         default: "docker.io/akshay1p1/sustainability-chatbo:latest"
-        description: "Docker image for chatbot"
+        description: "Docker image for sustainability chatbot"
+      - name: containerPort
+        type: integer
+        default: 5000
+        description: "Port the container listens on"
     artifacts: []
   template:
     apiVersion: "serving.kserve.io/v1beta1"
     metadata:
-      annotations: |
+      annotations:
         autoscaling.knative.dev/metric: rps
-        autoscaling.knative.dev/target: 100
-        autoscaling.knative.dev/targetBurstCapacity: 70
-      labels: |
-        ai.sap.com/resourcePlan: starter
-    spec: |
+        autoscaling.knative.dev/target: "100"
+        autoscaling.knative.dev/targetBurstCapacity: "70"
+      labels:
+        ai.sap.com/resourcePlan: "free"
+    spec:
       predictor:
         minReplicas: 1
         maxReplicas: 2
@@ -37,7 +41,7 @@ spec:
           - name: kserve-container
             image: "{{inputs.parameters.image}}"
             ports:
-              - containerPort: 5000
+              - containerPort: {{inputs.parameters.containerPort}}
                 protocol: TCP
             env:
               - name: SUPABASE_URL
@@ -54,4 +58,23 @@ spec:
                 valueFrom:
                   secretKeyRef:
                     name: gemini-secret
-                    key: GEMINI_API_KEY  
+                    key: GEMINI_API_KEY
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1"
+              limits:
+                memory: "4Gi"
+                cpu: "2"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: {{inputs.parameters.containerPort}}
+              initialDelaySeconds: 30
+              periodSeconds: 10
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: {{inputs.parameters.containerPort}}
+              initialDelaySeconds: 5
+              periodSeconds: 5
