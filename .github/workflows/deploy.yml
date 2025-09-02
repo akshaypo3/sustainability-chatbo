@@ -72,3 +72,24 @@ jobs:
         run: |
           echo "Container image to use in Serving Template:"
           echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
+           
+      # 9) Deploy Serving Template
+      - name: Deploy to SAP AI Core
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+        run: |
+          echo "Deploying to AI Core..."
+          curl -s -X POST "$AI_API_URL/v2/deployments" \
+            -H "Authorization: Bearer $AICORE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+                  \"name\": \"sustainability-chatbot-deployment\",
+                  \"executableId\": \"sustainability-chatbot-exec\",
+                  \"scenarioId\": \"chatbot-scenario\",
+                  \"resourceGroup\": \"$RESOURCE_GROUP\",
+                  \"parameters\": {
+                    \"image\": \"docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest\"
+                  }
+                }"
