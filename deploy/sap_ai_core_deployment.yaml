@@ -37,7 +37,7 @@ spec:
           - name: kserve-container
             image: "{{inputs.parameters.image}}"
             ports:
-              - containerPort: 8080   # 👈 match Dockerfile
+              - containerPort: 5000
                 protocol: TCP
             env:
               - name: SUPABASE_URL
