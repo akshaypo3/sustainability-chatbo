@@ -64,4 +64,4 @@ jobs:
     - name: Print image URL for Launchpad
       run: |
         echo "Container image to use in Serving Template:"
-        echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbot:latest"
+        echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"

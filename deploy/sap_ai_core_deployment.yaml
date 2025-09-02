@@ -15,7 +15,7 @@ spec:
     parameters:
       - name: image
         type: string
-        default: "docker.io/akshay1p1/sustainability-chatbo:latest"
+        default: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
         description: "Docker image for chatbot"
     artifacts: []
   template:
@@ -26,7 +26,7 @@ spec:
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
-        ai.sap.com/resourcePlan: default
+        ai.sap.com/resourcePlan: starter
     spec: |
       predictor:
         minReplicas: 1
