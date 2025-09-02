@@ -26,7 +26,7 @@ spec:
         autoscaling.knative.dev/target: 100
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
-        ai.sap.com/resourcePlan: starter
+        ai.sap.com/resourcePlan: default  # ← CHANGE THIS FROM "starter" TO "default"
     spec: |
       predictor:
         minReplicas: 1
@@ -45,7 +45,7 @@ spec:
                   secretKeyRef:
                     name: supabase-secret
                     key: SUPABASE_URL
-              - name: SUPABASE_KEY
+              - - name: SUPABASE_KEY
                 valueFrom:
                   secretKeyRef:
                     name: supabase-secret
