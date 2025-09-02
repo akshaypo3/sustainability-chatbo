@@ -13,9 +13,9 @@ metadata:
 
 spec:
   inputs:
-    parameters: []     # no params needed
+    parameters: []
     artifacts: []
-  template: |
+  template:
     apiVersion: serving.kserve.io/v1beta1
     kind: InferenceService
     metadata:
