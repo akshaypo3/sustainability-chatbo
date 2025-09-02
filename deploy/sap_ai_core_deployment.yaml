@@ -19,7 +19,7 @@ spec:
         description: "Docker image for sustainability chatbot"
       - name: containerPort
         type: integer
-        default: 5000
+        default: 8080  # Changed from 5000 to 8080 to match Dockerfile
         description: "Port the container listens on"
     artifacts: []
   template:

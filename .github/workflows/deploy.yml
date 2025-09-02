@@ -70,17 +70,16 @@ jobs:
           echo "Resource groups response:"
           echo "$response" | jq .
           
-          # Check if the specified resource group exists
           if echo "$response" | jq -e ".resources[] | select(.name == \"$RESOURCE_GROUP\")" > /dev/null; then
-            echo "✅ Resource group '$RESOURCE_GROUP' exists."
+            echo "Resource group '$RESOURCE_GROUP' exists."
           else
-            echo "❌ ERROR: Resource group '$RESOURCE_GROUP' not found!"
+            echo "ERROR: Resource group '$RESOURCE_GROUP' not found!"
             echo "Available resource groups:"
             echo "$response" | jq -r '.resources[].name'
             exit 1
           fi
 
-      # 8) Apply the deployment configuration
+       # 8) Apply the deployment configuration
       - name: Deploy to SAP AI Core
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
@@ -89,7 +88,6 @@ jobs:
         run: |
           echo "Deploying serving template to resource group: $RESOURCE_GROUP"
           
-          # Create or update the serving template
           response=$(curl -s -X POST \
             -H "Authorization: Bearer $AICORE_TOKEN" \
             -H "Content-Type: application/yaml" \
@@ -100,14 +98,13 @@ jobs:
           echo "Deployment response:"
           echo "$response" | jq .
           
-          # Check if deployment was successful
           if echo "$response" | jq -e '.name' > /dev/null; then
-            echo "✅ Deployment successful!"
+            echo "Deployment successful!"
             
-            # Wait a few seconds for deployment to initialize
-            sleep 10
+            echo "Waiting 30 seconds for deployment to initialize..."
+            sleep 30
             
-            # Get the deployment status
+
             DEPLOYMENT_NAME="sustainability-chatbot-serving"
             STATUS_RESPONSE=$(curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
                                   -H "AI-Resource-Group: $RESOURCE_GROUP" \
@@ -116,25 +113,25 @@ jobs:
             echo "Deployment status:"
             echo "$STATUS_RESPONSE" | jq .
             
-            # Extract URL if available
+
             URL=$(echo "$STATUS_RESPONSE" | jq -r '.status.url // empty')
             if [ -n "$URL" ] && [ "$URL" != "null" ]; then
               echo "🚀 Deployment URL: $URL"
               echo "DEPLOYMENT_URL=$URL" >> $GITHUB_ENV
             else
-              echo "⚠️  URL not available yet. Check SAP AI Core console for status."
+              echo " URL not available yet. Check SAP AI Core console for status."
+              echo "Note: It can take several minutes for the URL to become available."
             fi
             
           else
-            echo "❌ Deployment failed!"
+            echo " Deployment failed!"
             exit 1
           fi
-
       # 9) Output deployment information
       - name: Print deployment details
         run: |
           echo "=============================================="
-          echo "✅ DEPLOYMENT COMPLETED"
+          echo " DEPLOYMENT COMPLETED"
           echo "=============================================="
           echo "Container image: docker.io/akshay1p1/sustainability-chatbo:latest"
           echo "Resource group: ${{ secrets.RESOURCE_GROUP }}"
