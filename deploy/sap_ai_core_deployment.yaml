@@ -10,7 +10,9 @@ metadata:
   labels:
     ai.sap.com/version: "0.1.0"
     scenarios.ai.sap.com/id: "chatbot-scenario"
+    ai.sap.com/resourcePlan: "starter"   # 👈 ensures Launchpad shows Resource Plan
 spec:
+  resourceGroup: "default"               # 👈 ensures it deploys to your default RG
   inputs:
     parameters:
       - name: image
@@ -18,16 +20,15 @@ spec:
         default: "docker.io/akshay1p1/sustainability-chatbo:latest"
         description: "Docker image for chatbot"
     artifacts: []
-  template:
+  template: |
     apiVersion: "serving.kserve.io/v1beta1"
+    kind: InferenceService
     metadata:
-      annotations: |
+      annotations:
         autoscaling.knative.dev/metric: rps
-        autoscaling.knative.dev/target: 100
-        autoscaling.knative.dev/targetBurstCapacity: 70
-      labels: |
-        ai.sap.com/resourcePlan: starter
-    spec: |
+        autoscaling.knative.dev/target: "100"
+        autoscaling.knative.dev/targetBurstCapacity: "70"
+    spec:
       predictor:
         minReplicas: 1
         maxReplicas: 2
