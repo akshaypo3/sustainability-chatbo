@@ -1,4 +1,4 @@
-name: Build & Push Docker Image
+name: Build & Validate SAP AI Core
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-push:
+  build-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,17 +31,44 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest
 
-      # 5) Output image information
-      - name: Print image details
+      # 5) Install tools
+      - name: Install tools
         run: |
-          echo "=============================================="
-          echo " DOCKER IMAGE BUILT AND PUSHED"
-          echo "=============================================="
-          echo "Image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-          echo "=============================================="
-          echo "Next steps:"
-          echo "1. Go to SAP AI Core Launchpad"
-          echo "2. Create/update your deployment configuration"
-          echo "3. Use the image URL above"
-          echo "4. Deploy manually"
-          echo "=============================================="
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install --user ai-core-sdk
+
+      # 6) Get OAuth token from SAP BTP (XSUAA)
+      - name: Get AI Core OAuth Token
+        id: get_token
+        env:
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          response=$(curl -s -X POST "$AUTH_URL" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET")
+          echo "$response" | jq .
+          token=$(echo "$response" | jq -r '.access_token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "Failed to get access_token from AUTH_URL"; exit 1;
+          fi
+          echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
+
+      # 7) Validate AI Core API connectivity & list resource groups
+      - name: Validate AI Core API connectivity
+        env:
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AICORE_TOKEN: ${{ env.AICORE_TOKEN }}
+        run: |
+          echo "Listing resource groups to validate connectivity..."
+          curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
+               "$AI_API_URL/v2/resourceGroups" | jq .
+          echo "Success. Your creds and API URL are valid."
+
+      # 8) Output image URL for Launchpad
+      - name: Print image URL for Launchpad
+        run: |
+          echo "Container image to use in Serving Template:"
+          echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"

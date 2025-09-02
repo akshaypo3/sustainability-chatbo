@@ -23,12 +23,16 @@ spec:
     metadata:
       annotations: |
         autoscaling.knative.dev/metric: rps
-        autoscaling.knative.dev/target: 10
-        autoscaling.knative.dev/targetBurstCapacity: 5
+        autoscaling.knative.dev/target: 100
+        autoscaling.knative.dev/targetBurstCapacity: 70
+      labels: |
+        ai.sap.com/resourcePlan: starter
     spec: |
       predictor:
         minReplicas: 1
-        maxReplicas: 1  # Free tier typically allows only 1 replica
+        maxReplicas: 2
+        imagePullSecrets:
+          - name: dockerhub-secret
         containers:
           - name: kserve-container
             image: "{{inputs.parameters.image}}"
