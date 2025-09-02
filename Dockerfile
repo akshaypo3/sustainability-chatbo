@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the rest of the source
 COPY . .
 
-# Expose the same port as in ServingTemplate
-EXPOSE 5000
+# Expose the port KServe/Knative expects
+EXPOSE 8080
 
-# Start FastAPI (correct module path for KServe)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
+# Start FastAPI on 0.0.0.0:8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

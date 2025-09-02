@@ -2,32 +2,30 @@ apiVersion: ai.sap.com/v1alpha1
 kind: ServingTemplate
 metadata:
   name: sustainability-chatbot-serving
-  annotations:
-    scenarios.ai.sap.com/name: chatbot-scenario
-    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
-    executables.ai.sap.com/name: sustainability-chatbot-exec
-    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
   labels:
     ai.sap.com/version: "0.1.0"
     scenarios.ai.sap.com/id: "chatbot-scenario"
+  annotations:
+    scenarios.ai.sap.com/name: "chatbot-scenario"
+    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
+    executables.ai.sap.com/name: "sustainability-chatbot-exec"
+    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
+
 spec:
   inputs:
-    parameters:
-      - name: image
-        type: string
-        default: "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/sustainability-chatbo:latest"
-        description: "Docker image for chatbot"
+    parameters: []     # no params needed
     artifacts: []
-  template:
-    apiVersion: "serving.kserve.io/v1beta1"
+  template: |
+    apiVersion: serving.kserve.io/v1beta1
+    kind: InferenceService
     metadata:
-      annotations: |
-        autoscaling.knative.dev/metric: rps
-        autoscaling.knative.dev/target: 100
-        autoscaling.knative.dev/targetBurstCapacity: 70
-      labels: |
-        ai.sap.com/resourcePlan: starter
-    spec: |
+      labels:
+        ai.sap.com/resourcePlan: "starter"
+      annotations:
+        autoscaling.knative.dev/metric: "rps"
+        autoscaling.knative.dev/target: "100"
+        autoscaling.knative.dev/targetBurstCapacity: "70"
+    spec:
       predictor:
         minReplicas: 1
         maxReplicas: 2
@@ -35,11 +33,13 @@ spec:
           - name: dockerhub-secret
         containers:
           - name: kserve-container
-            image: "{{inputs.parameters.image}}"
+            image: "docker.io/akshay1p1/sustainability-chatbo:latest"
             ports:
-              - containerPort: 5000
+              - containerPort: 8080
                 protocol: TCP
             env:
+              - name: PORT
+                value: "8080"
               - name: SUPABASE_URL
                 valueFrom:
                   secretKeyRef:
@@ -55,3 +55,15 @@ spec:
                   secretKeyRef:
                     name: gemini-secret
                     key: GEMINI_API_KEY
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8080
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8080
+              initialDelaySeconds: 10
+              periodSeconds: 20
