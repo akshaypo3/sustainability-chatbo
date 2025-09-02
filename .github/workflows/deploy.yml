@@ -56,7 +56,7 @@ jobs:
           fi
           echo "AICORE_TOKEN=$token" >> $GITHUB_ENV
 
-      # 7) Validate AI Core API connectivity & list resource groups
+      # 7) Validate AI Core API connectivity
       - name: Validate AI Core API connectivity
         env:
           AI_API_URL: ${{ secrets.AI_API_URL }}
@@ -64,7 +64,7 @@ jobs:
         run: |
           echo "Listing resource groups to validate connectivity..."
           curl -s -H "Authorization: Bearer $AICORE_TOKEN" \
-               "$AI_API_URL/v2/resourceGroups" | jq .
+               "$AI_API_URL/v2/admin/resourceGroups" | jq .
           echo "Success. Your creds and API URL are valid."
 
       # 8) Output image URL for Launchpad

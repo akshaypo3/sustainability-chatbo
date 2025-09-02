@@ -27,6 +27,7 @@ spec:
         autoscaling.knative.dev/targetBurstCapacity: 70
       labels: |
         ai.sap.com/resourcePlan: starter
+        ai.sap.com/resourceGroup: default   # 👈 Added this
     spec: |
       predictor:
         minReplicas: 1
@@ -37,7 +38,7 @@ spec:
           - name: kserve-container
             image: "{{inputs.parameters.image}}"
             ports:
-              - containerPort: 5000
+              - containerPort: 8080   # 👈 match Dockerfile
                 protocol: TCP
             env:
               - name: SUPABASE_URL
