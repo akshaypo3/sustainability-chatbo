@@ -102,6 +102,7 @@ User Question: {message}
         )
 
         answer = response.text.strip()
+        answer = answer.replace("\n", " ").replace("**", "").strip()
 
         # Log AI response to Supabase
         supabase.table("messages").insert({"username": "AI", "message": answer}).execute()
