@@ -1,29 +1,58 @@
-apiVersion: argoproj.io/v1alpha1
-kind: WorkflowTemplate
+apiVersion: ai.sap.com/v1alpha1
+kind: ServingTemplate
 metadata:
-  name: first-pipeline # Executable ID (max length 64 lowercase-hyphen-separated), please modify this to any value if you are not the only user of your SAP AI Core instance. Example: `first-pipeline-1234`
+  name: sustainability-chatbot-serving
   annotations:
-    scenarios.ai.sap.com/description: "Introduction to SAP AI Core"
-    scenarios.ai.sap.com/name: "Tutorial"
-    executables.ai.sap.com/description: "Greets the user"
-    executables.ai.sap.com/name: "Hello Pipeline"
+    scenarios.ai.sap.com/name: chatbot-scenario
+    scenarios.ai.sap.com/description: "Sustainability Chatbot scenario"
+    executables.ai.sap.com/name: sustainability-chatbot-exec
+    executables.ai.sap.com/description: "Deploys Sustainability Chatbot container"
+    ai.sap.com/resourceGroup: "default"
   labels:
-    scenarios.ai.sap.com/id: "learning"
-    ai.sap.com/version: "1.0"
+    ai.sap.com/version: "0.1.0"
+    scenarios.ai.sap.com/id: "chatbot-scenario"
 spec:
-  entrypoint: mypipeline
-  templates:
-  - name: mypipeline
-    steps:
-    - - name: greet
-        template: greeter
-
-  - name: greeter
-    container:
-      image: docker.io/akshay1p1/sustainability-chatbo:latest
-      command:
-        - python3
-        - '-c'
-      args:
-       - |
-        print("Hello from SAP AI Core")
+  inputs:
+    parameters:
+      - name: image
+        type: string
+        default: "docker.io/akshay1p1/sustainability-chatbo:latest"
+        description: "Docker image for chatbot"
+    artifacts: []
+  template:
+    apiVersion: "serving.kserve.io/v1beta1"
+    metadata:
+      annotations: |
+        autoscaling.knative.dev/metric: rps
+        autoscaling.knative.dev/target: 100
+        autoscaling.knative.dev/targetBurstCapacity: 70
+      labels: |
+        ai.sap.com/resourcePlan: starter
+    spec: |
+      predictor:
+        minReplicas: 1
+        maxReplicas: 2
+        imagePullSecrets:
+          - name: dockerhub-secret
+        containers:
+          - name: kserve-container
+            image: "{{inputs.parameters.image}}"
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+            env:
+              - name: SUPABASE_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: supabase-secret
+                    key: SUPABASE_URL
+              - name: SUPABASE_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: supabase-secret
+                    key: SUPABASE_KEY
+              - name: GEMINI_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: gemini-secret
+                    key: GEMINI_API_KEY
